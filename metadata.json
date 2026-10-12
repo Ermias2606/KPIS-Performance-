@@ -1,0 +1,6 @@
+{
+  "name": "Copy of Raitu Branch Performance Tracker",
+  "description": "An offline-first web application for Raitu Branch to map and manage employee performance using the Annual Plan and Balanced Scorecard (BSC) structure. It allows for offline data entry, evaluation, and reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

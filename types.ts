@@ -1,0 +1,137 @@
+export enum Role {
+  STAFF = 'Staff Member',
+  MANAGER = 'Branch Manager',
+  ADMIN = 'Admin (HQ)',
+}
+
+export enum PerspectiveCategory {
+  FINANCIAL = 'Financial',
+  CUSTOMER = 'Customer',
+  INTERNAL_PROCESS = 'Internal Process',
+  LEARNING_GROWTH = 'Learning & Growth',
+}
+
+export enum KpiCategory {
+  DEPOSIT = 'Deposit',
+  CUSTOMER_BASE = 'Customer Base',
+  MOBILE_BANKING = 'Mobile Banking',
+  CARD_BANKING = 'Card Banking',
+  INTERNET_BANKING = 'Internet Banking',
+}
+
+export type KpiCategoryType = KpiCategory | string;
+
+export interface KpiCategoryItem {
+  id: string; // e.g. 'DEPOSIT', or custom ID
+  name: string; // display name, e.g. 'Deposit', 'Foreign Remittance'
+  perspective: PerspectiveCategory;
+  defaultUnit: string; // e.g. 'ETB', 'Accounts', 'Users', 'Cards', 'Txns'
+  color: string; // Hex color code or Tailwind accent color
+  description?: string;
+  isSystem?: boolean; // Default bank categories vs user-created
+}
+
+export interface Employee {
+  id: number;
+  name: string;
+  role: Role;
+  branchId: number;
+  pin: string;
+}
+
+export interface AnnualPlanObjective {
+  id: number;
+  category: PerspectiveCategory;
+  kpiCategory?: KpiCategoryType;
+  objective: string;
+  target?: number;
+  actual?: number;
+  unit?: string;
+  weight?: number;
+}
+
+export interface Kpi {
+  id: number;
+  employeeId: number;
+  objectiveId: number;
+  name: string;
+  weight: number; // Percentage
+  target: number;
+  actual: number;
+  kpiCategory?: KpiCategoryType;
+  selfRating?: number; // 1-5 scale
+  managerRating?: number; // 1-5 scale
+}
+
+export interface Branch {
+  id: number;
+  name: string;
+}
+
+export interface CalculatedKpi extends Kpi {
+  objective: AnnualPlanObjective;
+  achievement: number; // (actual / target) * 100
+  score: number; // achievementScore * weight
+}
+
+export type PlanTimeframe = 'annual' | 'quarterly' | 'monthly' | 'employee' | 'backlog' | 'analytics';
+
+export interface PeriodicPlanItem {
+  id: number;
+  category: KpiCategoryType;
+  name: string;
+  metricUnit: string; // e.g. 'ETB', 'Accounts', 'Users', 'Cards'
+  annualTarget: number;
+  annualActual: number;
+  weight: number; // Percentage
+  quarterly: {
+    q1: { target: number; actual: number };
+    q2: { target: number; actual: number };
+    q3: { target: number; actual: number };
+    q4: { target: number; actual: number };
+  };
+  monthly: {
+    [month: number]: { target: number; actual: number };
+  };
+}
+
+export type BacklogPriority = 'Urgent' | 'High' | 'Medium' | 'Low';
+export type BacklogStatus = 'Pending' | 'In Progress' | 'Cleared';
+
+export interface BacklogPlanItem {
+  id: number;
+  category: KpiCategoryType;
+  title: string;
+  metricUnit: string;
+  backlogTarget: number;
+  backlogActual: number;
+  originPeriod: string; // e.g. "Q2 2026 Shortfall", "Prior Period Inactive"
+  targetResolutionDate: string; // e.g. "End of Q4", "Nov 2026"
+  priority: BacklogPriority;
+  status: BacklogStatus;
+  assignedEmployeeId?: number; // Specific employee assigned to recover this backlog
+  assignedDate?: string;
+  notes?: string;
+}
+
+export interface EmployeePlanAssignment {
+  id: number;
+  employeeId: number;
+  category: KpiCategoryType;
+  title: string;
+  metricUnit: string;
+  annualTarget: number;
+  annualActual: number;
+  weight: number; // percentage
+  quarterly: {
+    q1: { target: number; actual: number };
+    q2: { target: number; actual: number };
+    q3: { target: number; actual: number };
+    q4: { target: number; actual: number };
+  };
+  monthly: {
+    [month: number]: { target: number; actual: number };
+  };
+  assignedDate?: string;
+  notes?: string;
+}
