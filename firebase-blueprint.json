@@ -1,0 +1,171 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Authenticated user profile in Raitu Branch BSC system",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth user ID" },
+        "email": { "type": "string", "format": "email", "description": "User Google email address" },
+        "displayName": { "type": "string", "description": "Display name" },
+        "role": { "type": "string", "enum": ["ADMIN", "MANAGER", "STAFF"], "description": "System role" },
+        "branchId": { "type": "number", "description": "Assigned branch identifier" },
+        "employeeId": { "type": "number", "description": "Corresponding staff ID if matched" },
+        "photoURL": { "type": "string", "description": "Avatar photo URL" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" }
+      },
+      "required": ["uid", "email", "displayName", "role"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Branch staff member and performance profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Employee ID" },
+        "name": { "type": "string", "description": "Full name of the employee" },
+        "email": { "type": "string", "format": "email", "description": "Corporate email" },
+        "role": { "type": "string", "enum": ["ADMIN", "MANAGER", "STAFF"], "description": "Access role" },
+        "branchId": { "type": "number", "description": "Branch ID" },
+        "branchName": { "type": "string", "description": "Branch name" },
+        "avatarUrl": { "type": "string", "description": "Avatar URL" },
+        "createdAt": { "type": "string", "description": "Created date" },
+        "updatedAt": { "type": "string", "description": "Updated date" }
+      },
+      "required": ["id", "name", "role", "branchId"]
+    },
+    "KpiCategory": {
+      "title": "KpiCategory",
+      "description": "Custom or system KPI Category definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Category unique ID or slug" },
+        "name": { "type": "string", "description": "Display name of the category" },
+        "perspective": { "type": "string", "description": "BSC Perspective" },
+        "defaultUnit": { "type": "string", "description": "Default metric unit" },
+        "color": { "type": "string", "description": "Badge color hex" },
+        "description": { "type": "string", "description": "Strategic description" },
+        "isSystem": { "type": "boolean", "description": "Whether this is a core default category" },
+        "createdAt": { "type": "string", "description": "Created at" }
+      },
+      "required": ["id", "name", "perspective", "defaultUnit", "color"]
+    },
+    "AnnualPlanObjective": {
+      "title": "AnnualPlanObjective",
+      "description": "High level strategic objective in the annual plan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Objective ID" },
+        "perspective": { "type": "string", "description": "BSC Perspective" },
+        "kpiCategory": { "type": "string", "description": "KPI Category name" },
+        "kpiName": { "type": "string", "description": "Objective KPI title" },
+        "metricUnit": { "type": "string", "description": "Unit of measurement" },
+        "annualTarget": { "type": "number", "description": "Target value" },
+        "weight": { "type": "number", "description": "Scorecard weight %" },
+        "year": { "type": "number", "description": "Planning fiscal year" }
+      },
+      "required": ["id", "perspective", "kpiCategory", "kpiName", "metricUnit", "annualTarget", "weight"]
+    },
+    "Kpi": {
+      "title": "Kpi",
+      "description": "Staff individual KPI assignment and actual record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "KPI ID" },
+        "employeeId": { "type": "number", "description": "Assigned employee ID" },
+        "annualPlanObjectiveId": { "type": "number", "description": "Source annual objective ID" },
+        "kpiCategory": { "type": "string", "description": "Category name" },
+        "kpiName": { "type": "string", "description": "KPI title" },
+        "metricUnit": { "type": "string", "description": "Unit" },
+        "annualTarget": { "type": "number", "description": "Target" },
+        "annualActual": { "type": "number", "description": "Recorded actual" },
+        "weight": { "type": "number", "description": "Weight %" },
+        "perspective": { "type": "string", "description": "Perspective" }
+      },
+      "required": ["id", "employeeId", "kpiCategory", "kpiName", "annualTarget", "annualActual", "weight", "perspective"]
+    },
+    "PeriodicPlanItem": {
+      "title": "PeriodicPlanItem",
+      "description": "Branch breakdown of target and actuals across quarters and months",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Periodic plan item ID" },
+        "category": { "type": "string", "description": "Category" },
+        "name": { "type": "string", "description": "KPI name" },
+        "metricUnit": { "type": "string", "description": "Metric unit" },
+        "annualTarget": { "type": "number", "description": "Annual target" },
+        "annualActual": { "type": "number", "description": "Annual actual" },
+        "weight": { "type": "number", "description": "Weight" }
+      },
+      "required": ["id", "category", "name", "metricUnit", "annualTarget", "annualActual", "weight"]
+    },
+    "BacklogPlanItem": {
+      "title": "BacklogPlanItem",
+      "description": "Arrears and backlog recovery strategy item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Backlog plan ID" },
+        "category": { "type": "string", "description": "Category" },
+        "name": { "type": "string", "description": "KPI name" },
+        "metricUnit": { "type": "string", "description": "Metric unit" },
+        "backlogAmount": { "type": "number", "description": "Original backlog deficit" },
+        "recoveredAmount": { "type": "number", "description": "Recovered amount" },
+        "targetRecoveryDays": { "type": "number", "description": "Target days to clear" },
+        "status": { "type": "string", "description": "Recovery status" }
+      },
+      "required": ["id", "category", "name", "backlogAmount", "recoveredAmount", "status"]
+    },
+    "EmployeePlanAssignment": {
+      "title": "EmployeePlanAssignment",
+      "description": "Staff monthly assignments for normal targets and backlog recovery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Assignment ID" },
+        "employeeId": { "type": "number", "description": "Employee ID" },
+        "employeeName": { "type": "string", "description": "Staff name" },
+        "category": { "type": "string", "description": "KPI Category" },
+        "kpiName": { "type": "string", "description": "Metric name" },
+        "metricUnit": { "type": "string", "description": "Unit" },
+        "annualTarget": { "type": "number", "description": "Assigned target" },
+        "annualActual": { "type": "number", "description": "Actual achieved" },
+        "weight": { "type": "number", "description": "Weight" },
+        "isBacklog": { "type": "boolean", "description": "Whether this is a backlog recovery assignment" }
+      },
+      "required": ["id", "employeeId", "category", "kpiName", "annualTarget", "annualActual"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles authenticated via Firebase Auth"
+    },
+    "/employees/{employeeId}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Branch staff directory and role mappings"
+    },
+    "/kpiCategories/{categoryId}": {
+      "schema": { "$ref": "#/entities/KpiCategory" },
+      "description": "Core and custom dynamic KPI categories"
+    },
+    "/annualPlanObjectives/{objectiveId}": {
+      "schema": { "$ref": "#/entities/AnnualPlanObjective" },
+      "description": "Branch annual scorecard objectives"
+    },
+    "/kpis/{kpiId}": {
+      "schema": { "$ref": "#/entities/Kpi" },
+      "description": "Staff individual KPI performance records"
+    },
+    "/periodicPlans/{planId}": {
+      "schema": { "$ref": "#/entities/PeriodicPlanItem" },
+      "description": "Periodic quarter and month branch breakdown"
+    },
+    "/backlogPlans/{backlogId}": {
+      "schema": { "$ref": "#/entities/BacklogPlanItem" },
+      "description": "Branch backlog and arrears recovery items"
+    },
+    "/employeePlans/{assignmentId}": {
+      "schema": { "$ref": "#/entities/EmployeePlanAssignment" },
+      "description": "Employee monthly plan and backlog work assignments"
+    }
+  }
+}

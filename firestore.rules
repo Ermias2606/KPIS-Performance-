@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isAuthenticated() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
+    }
+
+    function isBootstrappedAdmin() {
+      return isAuthenticated() && request.auth.token.email == 'ermikeab@gmail.com';
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == 'ADMIN');
+    }
+
+    function isManagerOrAdmin() {
+      return isAdmin() || (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == 'MANAGER');
+    }
+
+    // Test connection document for verifying Firestore client connectivity
+    match /test/connection {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Employees Directory
+    match /employees/{employeeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // KPI Categories (System and Custom)
+    match /kpiCategories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Annual Plan Objectives
+    match /annualPlanObjectives/{objectiveId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Individual KPIs
+    match /kpis/{kpiId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Periodic Plans (Annual/Quarterly/Monthly)
+    match /periodicPlans/{planId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Backlog Plans & Arrears
+    match /backlogPlans/{backlogId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Employee Plan & Backlog Assignments
+    match /employeePlans/{assignmentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+  }
+}

@@ -13,6 +13,22 @@ import {
 } from '../types';
 import { INITIAL_KPI_CATEGORIES } from '../constants';
 import * as db from '../services/db';
+import {
+  saveDocumentToFirestore,
+  deleteDocumentFromFirestore,
+} from '../services/firestoreSync';
+
+const firestoreSave = (collectionName: string, item: any) => {
+  if (typeof navigator !== 'undefined' && navigator.onLine) {
+    saveDocumentToFirestore(collectionName, item).catch(() => {});
+  }
+};
+
+const firestoreDelete = (collectionName: string, id: any) => {
+  if (typeof navigator !== 'undefined' && navigator.onLine) {
+    deleteDocumentFromFirestore(collectionName, id).catch(() => {});
+  }
+};
 
 interface RecordPerformanceParams {
   planId: number;
@@ -182,26 +198,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   const updateKpi = async (kpi: Kpi) => {
     await db.update('kpis', kpi);
+    firestoreSave('kpis', kpi);
     await fetchData();
   };
 
   const addKpi = async (kpi: Omit<Kpi, 'id'>) => {
-    await db.add('kpis', kpi);
+    const id = await db.add('kpis', kpi);
+    firestoreSave('kpis', { ...kpi, id });
     await fetchData();
   };
 
   const deleteKpi = async (id: number) => {
     await db.deleteById('kpis', id);
+    firestoreDelete('kpis', id);
     await fetchData();
   };
 
   const addEmployee = async (employee: Omit<Employee, 'id'>) => {
-    await db.add('employees', employee);
+    const id = await db.add('employees', employee);
+    firestoreSave('employees', { ...employee, id });
     await fetchData();
   };
 
   const updateEmployee = async (employee: Employee) => {
     await db.update('employees', employee);
+    firestoreSave('employees', employee);
     await fetchData();
   };
 
@@ -209,57 +230,69 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const employeeKpis = kpis.filter(k => k.employeeId === id);
     for (const k of employeeKpis) {
       await db.deleteById('kpis', k.id);
+      firestoreDelete('kpis', k.id);
     }
     const empPlans = employeePlans.filter(ep => ep.employeeId === id);
     for (const ep of empPlans) {
       await db.deleteById('employeePlans', ep.id);
+      firestoreDelete('employeePlans', ep.id);
     }
     await db.deleteById('employees', id);
+    firestoreDelete('employees', id);
     await fetchData();
   };
 
   const addObjective = async (objective: Omit<AnnualPlanObjective, 'id'>) => {
-    await db.add('annualPlan', objective);
+    const id = await db.add('annualPlan', objective);
+    firestoreSave('annualPlanObjectives', { ...objective, id });
     await fetchData();
   };
 
   const updateObjective = async (objective: AnnualPlanObjective) => {
     await db.update('annualPlan', objective);
+    firestoreSave('annualPlanObjectives', objective);
     await fetchData();
   };
 
   const deleteObjective = async (id: number) => {
     await db.deleteById('annualPlan', id);
+    firestoreDelete('annualPlanObjectives', id);
     await fetchData();
   };
 
   const updatePeriodicPlan = async (plan: PeriodicPlanItem) => {
     await db.update('plans', plan);
+    firestoreSave('periodicPlans', plan);
     await fetchData();
   };
 
   const addPeriodicPlan = async (plan: Omit<PeriodicPlanItem, 'id'>) => {
-    await db.add('plans', plan);
+    const id = await db.add('plans', plan);
+    firestoreSave('periodicPlans', { ...plan, id });
     await fetchData();
   };
 
   const deletePeriodicPlan = async (id: number) => {
     await db.deleteById('plans', id);
+    firestoreDelete('periodicPlans', id);
     await fetchData();
   };
 
   const updateBacklogPlan = async (item: BacklogPlanItem) => {
     await db.update('backlogPlans', item);
+    firestoreSave('backlogPlans', item);
     await fetchData();
   };
 
   const addBacklogPlan = async (item: Omit<BacklogPlanItem, 'id'>) => {
-    await db.add('backlogPlans', item);
+    const id = await db.add('backlogPlans', item);
+    firestoreSave('backlogPlans', { ...item, id });
     await fetchData();
   };
 
   const deleteBacklogPlan = async (id: number) => {
     await db.deleteById('backlogPlans', id);
+    firestoreDelete('backlogPlans', id);
     await fetchData();
   };
 
@@ -463,14 +496,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     await db.update('employeePlans', updated);
+    firestoreSave('employeePlans', updated);
 
     // Sync employee KPI in real time
     const matchingKpi = kpis.find(k => k.employeeId === updated.employeeId && k.kpiCategory === updated.category);
     if (matchingKpi) {
-      await db.update('kpis', {
+      const updatedKpi = {
         ...matchingKpi,
         actual: updated.annualActual,
-      });
+      };
+      await db.update('kpis', updatedKpi);
+      firestoreSave('kpis', updatedKpi);
     }
 
     await fetchData();
@@ -484,17 +520,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isSystem: false,
     };
     await db.update('kpiCategories', newCat);
+    firestoreSave('kpiCategories', newCat);
     await fetchData();
     return newCat;
   };
 
   const updateKpiCategory = async (cat: KpiCategoryItem) => {
     await db.update('kpiCategories', cat);
+    firestoreSave('kpiCategories', cat);
     await fetchData();
   };
 
   const deleteKpiCategory = async (id: string) => {
     await db.deleteById('kpiCategories', id);
+    firestoreDelete('kpiCategories', id);
     await fetchData();
   };
 

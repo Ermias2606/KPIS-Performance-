@@ -35,6 +35,11 @@ const SidebarIcon: React.FC<{ path: string }> = ({ path }) => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
       </svg>
     ),
+    'landing portal': (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+      </svg>
+    ),
   };
   return icons[path.toLowerCase()] || null;
 };
@@ -91,12 +96,13 @@ const Sidebar: React.FC<SidebarProps> = ({ user, isOpen, setIsOpen }) => {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1.5">
+        <nav className="flex-1 space-y-1.5 bg-white">
           <NavItem to="/dashboard" label="Dashboard" />
           {(isAdmin || isManager) && <NavItem to="/employees" label="Employees" />}
           {(isStaff || isManager) && <NavItem to={`/employees/${user.id}`} label="My Scorecard" />}
           <NavItem to="/plan" label="Plan" />
           {(isAdmin || isManager) && <NavItem to="/reports" label="Reports" />}
+          <NavItem to="/" label="Landing Portal" />
         </nav>
 
         <div className="mt-auto p-3 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs text-slate-500">

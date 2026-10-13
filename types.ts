@@ -37,6 +37,8 @@ export interface Employee {
   role: Role;
   branchId: number;
   pin: string;
+  email?: string;
+  avatarUrl?: string;
 }
 
 export interface AnnualPlanObjective {
