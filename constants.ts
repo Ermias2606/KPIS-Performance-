@@ -61,12 +61,76 @@ export const INITIAL_KPI_CATEGORIES: KpiCategoryItem[] = [
 ];
 
 export const BRANCHES: Branch[] = [
-  { id: 1, name: 'Raitu Branch' },
+  {
+    id: 1,
+    name: 'Raitu Branch',
+    code: 'RTU-01',
+    district: 'West Hararghe District',
+    fiscalYear: '2024/2025',
+    openingDate: '2021-07-01',
+    juneClosingDepositBalance: 320000000, // 320 Million ETB previous June closing balance
+    isActive: true,
+  },
+  {
+    id: 2,
+    name: 'Asbe Teferi Branch',
+    code: 'ATF-02',
+    district: 'West Hararghe District',
+    fiscalYear: '2024/2025',
+    openingDate: '2019-10-12',
+    juneClosingDepositBalance: 580000000,
+    isActive: false,
+  },
 ];
 
 export const EMPLOYEES: Employee[] = [
-  { id: 1, name: 'Admin User', role: Role.ADMIN, branchId: 1, pin: '1234' },
-  { id: 2, name: 'Ermiyas Getachew', role: Role.STAFF, branchId: 1, pin: '4444' },
+  {
+    id: 1,
+    name: 'Admin User',
+    role: Role.ADMIN,
+    branchId: 1,
+    pin: '1234',
+    positionTitle: 'Branch Controller & Performance Auditor',
+    email: 'admin@cbe.com.et',
+    department: 'Audit & Performance Management',
+    status: 'Active',
+  },
+  {
+    id: 2,
+    name: 'Ermiyas Getachew',
+    role: Role.STAFF,
+    branchId: 1,
+    pin: '4444',
+    positionTitle: 'Senior Customer Service Officer (CSO)',
+    email: 'ermiyas.g@cbe.com.et',
+    phone: '+251 911 234 567',
+    department: 'Customer Service & Deposit Mobilization',
+    status: 'Active',
+  },
+  {
+    id: 3,
+    name: 'Fatima Abdi',
+    role: Role.STAFF,
+    branchId: 1,
+    pin: '5555',
+    positionTitle: 'Customer Relationship Officer - Digital Banking',
+    email: 'fatima.a@cbe.com.et',
+    phone: '+251 922 345 678',
+    department: 'Digital Banking & E-Payment',
+    status: 'Active',
+  },
+  {
+    id: 4,
+    name: 'Dawit Bekele',
+    role: Role.MANAGER,
+    branchId: 1,
+    pin: '7777',
+    positionTitle: 'Branch Business Manager',
+    email: 'dawit.b@cbe.com.et',
+    phone: '+251 933 456 789',
+    department: 'Branch Management',
+    status: 'Active',
+  },
 ];
 
 export const ANNUAL_PLAN_2026: AnnualPlanObjective[] = [

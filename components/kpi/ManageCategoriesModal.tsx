@@ -15,6 +15,7 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({ is
   const [showAddCat, setShowAddCat] = useState(false);
   const [showAddKpi, setShowAddKpi] = useState(false);
   const [selectedCatForKpi, setSelectedCatForKpi] = useState<string>('');
+  const [confirmDeleteCatId, setConfirmDeleteCatId] = useState<number | null>(null);
 
   if (!isOpen) return null;
 
@@ -106,19 +107,35 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({ is
                         </div>
 
                         {!cat.isSystem && (
-                          <button
-                            onClick={() => {
-                              if (confirm(`Delete custom category "${cat.name}"?`)) {
-                                deleteKpiCategory(cat.id);
-                              }
-                            }}
-                            className="text-slate-400 hover:text-red-600 p-1 rounded transition cursor-pointer"
-                            title="Delete custom category"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                          confirmDeleteCatId === cat.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  deleteKpiCategory(cat.id);
+                                  setConfirmDeleteCatId(null);
+                                }}
+                                className="px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded hover:bg-red-700 transition cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteCatId(null)}
+                                className="px-1.5 py-0.5 text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteCatId(cat.id)}
+                              className="text-slate-400 hover:text-red-600 p-1 rounded transition cursor-pointer"
+                              title="Delete custom category"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )
                         )}
                       </div>
 

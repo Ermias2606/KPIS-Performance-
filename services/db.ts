@@ -67,9 +67,18 @@ const initDB = async () => {
   // Refresh branches
   const brTx = db.transaction('branches', 'readwrite');
   const brStore = brTx.objectStore('branches');
-  if (await brStore.count() === 0) {
-    for (const br of BRANCHES) {
+  for (const br of BRANCHES) {
+    const existing = await brStore.get(br.id);
+    if (!existing) {
       await brStore.put(br);
+    } else {
+      await brStore.put({
+        ...br,
+        ...existing,
+        juneClosingDepositBalance: existing.juneClosingDepositBalance ?? br.juneClosingDepositBalance,
+        fiscalYear: existing.fiscalYear ?? br.fiscalYear,
+        code: existing.code ?? br.code,
+      });
     }
   }
   await brTx.done;

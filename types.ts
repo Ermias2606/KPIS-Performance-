@@ -37,7 +37,11 @@ export interface Employee {
   role: Role;
   branchId: number;
   pin: string;
+  positionTitle?: string;
   email?: string;
+  phone?: string;
+  department?: string;
+  status?: 'Active' | 'On Leave' | 'Transferred';
   avatarUrl?: string;
 }
 
@@ -50,6 +54,7 @@ export interface AnnualPlanObjective {
   actual?: number;
   unit?: string;
   weight?: number;
+  branchId?: number;
 }
 
 export interface Kpi {
@@ -68,6 +73,20 @@ export interface Kpi {
 export interface Branch {
   id: number;
   name: string;
+  code?: string; // e.g. "RTU-01"
+  district?: string; // e.g. "West Hararghe District"
+  fiscalYear?: string; // e.g. "2024/2025"
+  openingDate?: string;
+  juneClosingDepositBalance?: number; // Previous June closing balance in ETB
+  isActive?: boolean;
+}
+
+export interface FiscalYearConfig {
+  fiscalYear: string;
+  startDate: string;
+  endDate: string;
+  juneClosingDepositBalance: number;
+  targetGrowthRate: number; // e.g. 20%
 }
 
 export interface CalculatedKpi extends Kpi {
@@ -86,6 +105,7 @@ export interface PeriodicPlanItem {
   annualTarget: number;
   annualActual: number;
   weight: number; // Percentage
+  branchId?: number;
   quarterly: {
     q1: { target: number; actual: number };
     q2: { target: number; actual: number };
@@ -111,6 +131,7 @@ export interface BacklogPlanItem {
   targetResolutionDate: string; // e.g. "End of Q4", "Nov 2026"
   priority: BacklogPriority;
   status: BacklogStatus;
+  branchId?: number;
   assignedEmployeeId?: number; // Specific employee assigned to recover this backlog
   assignedDate?: string;
   notes?: string;
@@ -125,6 +146,7 @@ export interface EmployeePlanAssignment {
   annualTarget: number;
   annualActual: number;
   weight: number; // percentage
+  branchId?: number;
   quarterly: {
     q1: { target: number; actual: number };
     q2: { target: number; actual: number };
@@ -136,4 +158,23 @@ export interface EmployeePlanAssignment {
   };
   assignedDate?: string;
   notes?: string;
+}
+
+export interface BacklogNotice {
+  id: string;
+  planId?: number;
+  category: KpiCategoryType;
+  kpiName: string;
+  periodType: 'quarter' | 'month' | 'annual';
+  periodName: string; // e.g. "Q1", "Q2", "Month 3 (September)"
+  target: number;
+  actual: number;
+  deficit: number; // target - actual
+  metricUnit: string;
+  severity: 'Urgent' | 'High' | 'Medium' | 'Low';
+  source: 'branch' | 'employee';
+  employeeId?: number;
+  employeeName?: string;
+  detectedAt: string;
+  acknowledged?: boolean;
 }

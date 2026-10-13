@@ -10,12 +10,15 @@ import {
   BacklogPlanItem,
   EmployeePlanAssignment,
   KpiCategoryItem,
+  BacklogNotice,
 } from '../types';
 import { INITIAL_KPI_CATEGORIES } from '../constants';
 import * as db from '../services/db';
 import {
   saveDocumentToFirestore,
   deleteDocumentFromFirestore,
+  fetchCollectionFromFirestore,
+  batchSeedCollection,
 } from '../services/firestoreSync';
 
 const firestoreSave = (collectionName: string, item: any) => {
@@ -61,9 +64,31 @@ export interface CreateFullKpiParams {
   addToAnnualPlan?: boolean;
 }
 
+interface DepositMobilizationMetrics {
+  juneBaseline: number;
+  annualTargetIncrement: number;
+  actualNetIncrement: number;
+  currentDepositBalance: number;
+  incrementAchievement: number;
+  netVariance: number;
+  isUnderJuneBalance: boolean;
+  underJuneBalanceAmount: number;
+  quarterlyIncrements: {
+    q1: { target: number; actual: number; variance: number; achievement: number };
+    q2: { target: number; actual: number; variance: number; achievement: number };
+    q3: { target: number; actual: number; variance: number; achievement: number };
+    q4: { target: number; actual: number; variance: number; achievement: number };
+  };
+  monthlyIncrements: { [m: number]: { target: number; actual: number; variance: number; achievement: number } };
+}
+
 interface DataContextType {
   employees: Employee[];
   branches: Branch[];
+  activeBranchId: number;
+  setActiveBranchId: (id: number) => void;
+  fiscalYear: string;
+  setFiscalYear: (year: string) => Promise<void>;
   annualPlan: AnnualPlanObjective[];
   kpis: Kpi[];
   periodicPlans: PeriodicPlanItem[];
@@ -79,6 +104,10 @@ interface DataContextType {
   addEmployee: (employee: Omit<Employee, 'id'>) => Promise<void>;
   updateEmployee: (employee: Employee) => Promise<void>;
   deleteEmployee: (id: number) => Promise<void>;
+  addBranch: (branch: Omit<Branch, 'id'>) => Promise<Branch>;
+  updateBranch: (branch: Branch) => Promise<void>;
+  deleteBranch: (id: number) => Promise<void>;
+  movePlanToBranch: (planId: number, targetBranchId: number, planType: 'periodic' | 'annual' | 'backlog') => Promise<void>;
   addObjective: (objective: Omit<AnnualPlanObjective, 'id'>) => Promise<void>;
   updateObjective: (objective: AnnualPlanObjective) => Promise<void>;
   deleteObjective: (id: number) => Promise<void>;
@@ -103,6 +132,10 @@ interface DataContextType {
   updateKpiCategory: (cat: KpiCategoryItem) => Promise<void>;
   deleteKpiCategory: (id: string) => Promise<void>;
   createFullKpi: (params: CreateFullKpiParams) => Promise<void>;
+  getCalculatedBacklogNotices: () => BacklogNotice[];
+  convertNoticeToBacklogPlan: (notice: BacklogNotice, assignedEmployeeId?: number) => Promise<void>;
+  dismissNotice: (noticeId: string) => void;
+  getDepositMobilizationMetrics: (branchId?: number) => DepositMobilizationMetrics;
 }
 
 export const DataContext = createContext<DataContextType>({} as DataContextType);
@@ -148,6 +181,15 @@ export const calculateKpiMetrics = (kpi: Kpi, objective: AnnualPlanObjective | u
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [activeBranchId, setActiveBranchId] = useState<number>(1);
+  const [fiscalYear, setFiscalYearState] = useState<string>('2024/2025');
+  const [dismissedNoticeIds, setDismissedNoticeIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('raitu_dismissed_notices') || '[]');
+    } catch {
+      return [];
+    }
+  });
   const [annualPlan, setAnnualPlan] = useState<AnnualPlanObjective[]>([]);
   const [kpis, setKpis] = useState<Kpi[]>([]);
   const [periodicPlans, setPeriodicPlans] = useState<PeriodicPlanItem[]>([]);
@@ -170,13 +212,39 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         db.getAll<KpiCategoryItem>('kpiCategories').catch(() => []),
       ]);
       setEmployees(emp);
-      setBranches(br);
+      if (br && br.length > 0) {
+        setBranches(br);
+        const activeBr = br.find(b => b.isActive) || br[0];
+        setActiveBranchId(prev => br.some(b => b.id === prev) ? prev : activeBr.id);
+        if (activeBr.fiscalYear) {
+          setFiscalYearState(activeBr.fiscalYear);
+        }
+      }
       setAnnualPlan(plan);
       setKpis(kpiItems);
       setPeriodicPlans(pPlans);
       setBacklogPlans(bPlans);
       setEmployeePlans(epPlans);
       setKpiCategories(cats && cats.length > 0 ? cats : INITIAL_KPI_CATEGORIES);
+
+      // Non-blocking background sync: If online and Firestore is unseeded, populate initial records
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        setTimeout(async () => {
+          try {
+            const remoteEmps = await fetchCollectionFromFirestore<Employee>('employees');
+            if (remoteEmps.length === 0 && emp.length > 0) {
+              await batchSeedCollection('employees', emp);
+              if (plan.length > 0) await batchSeedCollection('annualPlanObjectives', plan);
+              if (kpiItems.length > 0) await batchSeedCollection('kpis', kpiItems);
+              if (pPlans.length > 0) await batchSeedCollection('periodicPlans', pPlans);
+              if (bPlans.length > 0) await batchSeedCollection('backlogPlans', bPlans);
+              if (epPlans.length > 0) await batchSeedCollection('employeePlans', epPlans);
+            }
+          } catch {
+            // Graceful fallback for offline or unauthenticated initialization
+          }
+        }, 1500);
+      }
     } catch (error) {
       console.error('Failed to load data from DB:', error);
     } finally {
@@ -239,6 +307,76 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     await db.deleteById('employees', id);
     firestoreDelete('employees', id);
+    await fetchData();
+  };
+
+  const addBranch = async (branchData: Omit<Branch, 'id'>): Promise<Branch> => {
+    const nextId = branches.length > 0 ? Math.max(...branches.map(b => b.id)) + 1 : 1;
+    const newBranch: Branch = {
+      ...branchData,
+      id: nextId,
+      isActive: branchData.isActive ?? false,
+      juneClosingDepositBalance: branchData.juneClosingDepositBalance ?? 320000000,
+      fiscalYear: branchData.fiscalYear || fiscalYear,
+    };
+    await db.add('branches', newBranch);
+    firestoreSave('branches', newBranch);
+    await fetchData();
+    return newBranch;
+  };
+
+  const updateBranch = async (branchData: Branch) => {
+    await db.update('branches', branchData);
+    firestoreSave('branches', branchData);
+    await fetchData();
+  };
+
+  const deleteBranch = async (id: number) => {
+    await db.deleteById('branches', id);
+    firestoreDelete('branches', id);
+    if (activeBranchId === id) {
+      const remaining = branches.filter(b => b.id !== id);
+      if (remaining.length > 0) setActiveBranchId(remaining[0].id);
+    }
+    await fetchData();
+  };
+
+  const setFiscalYear = async (newYear: string) => {
+    setFiscalYearState(newYear);
+    const currBranch = branches.find(b => b.id === activeBranchId);
+    if (currBranch) {
+      const updated = { ...currBranch, fiscalYear: newYear };
+      await updateBranch(updated);
+    }
+  };
+
+  const movePlanToBranch = async (
+    planId: number,
+    targetBranchId: number,
+    planType: 'periodic' | 'annual' | 'backlog'
+  ) => {
+    if (planType === 'periodic') {
+      const plan = periodicPlans.find(p => p.id === planId);
+      if (plan) {
+        const updated = { ...plan, branchId: targetBranchId };
+        await db.update('plans', updated);
+        firestoreSave('periodicPlans', updated);
+      }
+    } else if (planType === 'annual') {
+      const obj = annualPlan.find(p => p.id === planId);
+      if (obj) {
+        const updated = { ...obj, branchId: targetBranchId };
+        await db.update('annualPlan', updated);
+        firestoreSave('annualPlanObjectives', updated);
+      }
+    } else if (planType === 'backlog') {
+      const item = backlogPlans.find(b => b.id === planId);
+      if (item) {
+        const updated = { ...item, branchId: targetBranchId };
+        await db.update('backlogPlans', updated);
+        firestoreSave('backlogPlans', updated);
+      }
+    }
     await fetchData();
   };
 
@@ -314,6 +452,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         delete updated.assignedDate;
       }
       await db.update('backlogPlans', updated);
+      firestoreSave('backlogPlans', updated);
       await fetchData();
     }
   };
@@ -335,11 +474,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (backlogItem) {
         const finalActual = isIncremental ? backlogItem.backlogActual + newActual : newActual;
         const newStatus = finalActual >= backlogItem.backlogTarget ? 'Cleared' : 'In Progress';
-        await db.update('backlogPlans', {
+        const updatedBacklog = {
           ...backlogItem,
           backlogActual: finalActual,
           status: newStatus,
-        });
+        };
+        await db.update('backlogPlans', updatedBacklog);
+        firestoreSave('backlogPlans', updatedBacklog);
       }
     } else {
       const plan = periodicPlans.find(p => p.id === planId);
@@ -377,14 +518,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         await db.update('plans', updated);
+        firestoreSave('periodicPlans', updated);
 
         // Synchronize with Ermiyas's corresponding employee KPI
         const matchingKpi = kpis.find(k => k.kpiCategory === plan.category);
         if (matchingKpi) {
-          await db.update('kpis', {
+          const updatedKpi = {
             ...matchingKpi,
             actual: updated.annualActual,
-          });
+          };
+          await db.update('kpis', updatedKpi);
+          firestoreSave('kpis', updatedKpi);
         }
       }
     }
@@ -395,21 +539,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Specific Employee Plan Assignment & Performance Methods
   const assignEmployeePlan = async (assignment: Omit<EmployeePlanAssignment, 'id'>) => {
     const newId = await db.add('employeePlans', assignment);
+    const assignedWithId = { ...assignment, id: Number(newId) };
+    firestoreSave('employeePlans', assignedWithId);
 
     // Sync or create corresponding KPI for the employee's scorecard
     const matchingObjective = annualPlan.find(ap => ap.kpiCategory === assignment.category) || annualPlan[0];
     const existingKpi = kpis.find(k => k.employeeId === assignment.employeeId && k.kpiCategory === assignment.category);
 
     if (existingKpi) {
-      await db.update('kpis', {
+      const updatedKpi = {
         ...existingKpi,
         name: assignment.title,
         weight: assignment.weight,
         target: assignment.annualTarget,
         actual: assignment.annualActual,
-      });
+      };
+      await db.update('kpis', updatedKpi);
+      firestoreSave('kpis', updatedKpi);
     } else if (matchingObjective) {
-      await db.add('kpis', {
+      const newKpi = {
         employeeId: assignment.employeeId,
         objectiveId: matchingObjective.id,
         name: assignment.title,
@@ -417,7 +565,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         weight: assignment.weight,
         target: assignment.annualTarget,
         actual: assignment.annualActual,
-      });
+      };
+      const newKpiId = await db.add('kpis', newKpi);
+      firestoreSave('kpis', { ...newKpi, id: Number(newKpiId) });
     }
 
     await fetchData();
@@ -425,17 +575,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateEmployeePlan = async (assignment: EmployeePlanAssignment) => {
     await db.update('employeePlans', assignment);
+    firestoreSave('employeePlans', assignment);
 
     // Synchronize KPI
     const matchingKpi = kpis.find(k => k.employeeId === assignment.employeeId && k.kpiCategory === assignment.category);
     if (matchingKpi) {
-      await db.update('kpis', {
+      const updatedKpi = {
         ...matchingKpi,
         name: assignment.title,
         weight: assignment.weight,
         target: assignment.annualTarget,
         actual: assignment.annualActual,
-      });
+      };
+      await db.update('kpis', updatedKpi);
+      firestoreSave('kpis', updatedKpi);
     }
 
     await fetchData();
@@ -447,9 +600,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const matchingKpi = kpis.find(k => k.employeeId === item.employeeId && k.kpiCategory === item.category);
       if (matchingKpi) {
         await db.deleteById('kpis', matchingKpi.id);
+        firestoreDelete('kpis', matchingKpi.id);
       }
     }
     await db.deleteById('employeePlans', id);
+    firestoreDelete('employeePlans', id);
     await fetchData();
   };
 
@@ -541,7 +696,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let objectiveId = 0;
     // 1. Add to Annual Plan Objectives if enabled
     if (params.addToAnnualPlan !== false) {
-      const newObjId = await db.add('annualPlan', {
+      const objData = {
         category: params.perspective,
         kpiCategory: params.category,
         objective: params.name,
@@ -549,8 +704,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         actual: params.annualActual || 0,
         unit: params.metricUnit,
         weight: params.weight,
-      });
+      };
+      const newObjId = await db.add('annualPlan', objData);
       objectiveId = Number(newObjId);
+      firestoreSave('annualPlanObjectives', { ...objData, id: objectiveId });
     }
 
     // 2. Add to Periodic Plan Items if enabled
@@ -568,7 +725,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
       }
 
-      await db.add('plans', {
+      const planData = {
         category: params.category,
         name: params.name,
         metricUnit: params.metricUnit,
@@ -582,7 +739,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           q4: { target: qTarget, actual: params.annualActual ? Math.max(0, params.annualActual - qActual * 3) : 0 },
         },
         monthly,
-      });
+      };
+
+      const planId = await db.add('plans', planData);
+      firestoreSave('periodicPlans', { ...planData, id: Number(planId) });
     }
 
     // 3. Assign to Employee if employee specified
@@ -591,7 +751,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const empActual = params.employeeActual !== undefined ? params.employeeActual : (params.annualActual || 0);
 
       // Add to Employee Balanced Scorecard (kpis store)
-      await db.add('kpis', {
+      const kpiData = {
         employeeId: params.assignToEmployeeId,
         objectiveId: objectiveId || 1,
         name: params.name,
@@ -599,7 +759,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         weight: params.weight,
         target: empTarget,
         actual: empActual,
-      });
+      };
+      const kpiId = await db.add('kpis', kpiData);
+      firestoreSave('kpis', { ...kpiData, id: Number(kpiId) });
 
       // Add to Employee Plans store
       const qTarget = Math.round(empTarget / 4);
@@ -612,7 +774,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         monthly[m] = { target: mTarget, actual: m <= 9 ? mActual : 0 };
       }
 
-      await db.add('employeePlans', {
+      const empPlanData = {
         employeeId: params.assignToEmployeeId,
         category: params.category,
         title: params.name,
@@ -628,15 +790,226 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         },
         monthly,
         assignedDate: new Date().toISOString().split('T')[0],
-      });
+      };
+
+      const empPlanId = await db.add('employeePlans', empPlanData);
+      firestoreSave('employeePlans', { ...empPlanData, id: Number(empPlanId) });
     }
 
     await fetchData();
   };
 
+  const dismissNotice = useCallback((noticeId: string) => {
+    setDismissedNoticeIds(prev => {
+      const next = [...prev, noticeId];
+      try {
+        localStorage.setItem('raitu_dismissed_notices', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const getCalculatedBacklogNotices = useCallback((): BacklogNotice[] => {
+    const notices: BacklogNotice[] = [];
+    const now = new Date().toISOString().split('T')[0];
+
+    periodicPlans.forEach(plan => {
+      const quarters = ['q1', 'q2', 'q3', 'q4'] as const;
+      quarters.forEach(q => {
+        const qData = plan.quarterly[q];
+        if (qData && qData.target > 0 && qData.actual < qData.target) {
+          const deficit = qData.target - qData.actual;
+          const noticeId = `notice-branch-${plan.id}-${q}`;
+          if (!dismissedNoticeIds.includes(noticeId)) {
+            notices.push({
+              id: noticeId,
+              planId: plan.id,
+              category: plan.category,
+              kpiName: plan.name,
+              periodType: 'quarter',
+              periodName: q.toUpperCase(),
+              target: qData.target,
+              actual: qData.actual,
+              deficit,
+              metricUnit: plan.metricUnit,
+              severity: deficit > qData.target * 0.3 ? 'High' : 'Medium',
+              source: 'branch',
+              detectedAt: now,
+            });
+          }
+        }
+      });
+
+      for (let m = 1; m <= 12; m++) {
+        const mData = plan.monthly[m];
+        if (mData && mData.target > 0 && mData.actual < mData.target) {
+          const deficit = mData.target - mData.actual;
+          const noticeId = `notice-branch-${plan.id}-m${m}`;
+          const monthNames = [
+            'Month 1 (July)', 'Month 2 (August)', 'Month 3 (September)',
+            'Month 4 (October)', 'Month 5 (November)', 'Month 6 (December)',
+            'Month 7 (January)', 'Month 8 (February)', 'Month 9 (March)',
+            'Month 10 (April)', 'Month 11 (May)', 'Month 12 (June)',
+          ];
+          if (!dismissedNoticeIds.includes(noticeId)) {
+            notices.push({
+              id: noticeId,
+              planId: plan.id,
+              category: plan.category,
+              kpiName: plan.name,
+              periodType: 'month',
+              periodName: monthNames[m - 1] || `Month ${m}`,
+              target: mData.target,
+              actual: mData.actual,
+              deficit,
+              metricUnit: plan.metricUnit,
+              severity: deficit > mData.target * 0.4 ? 'High' : 'Medium',
+              source: 'branch',
+              detectedAt: now,
+            });
+          }
+        }
+      }
+    });
+
+    employeePlans.forEach(ep => {
+      const emp = employees.find(e => e.id === ep.employeeId);
+      const quarters = ['q1', 'q2', 'q3', 'q4'] as const;
+      quarters.forEach(q => {
+        const qData = ep.quarterly[q];
+        if (qData && qData.target > 0 && qData.actual < qData.target) {
+          const deficit = qData.target - qData.actual;
+          const noticeId = `notice-emp-${ep.id}-${q}`;
+          if (!dismissedNoticeIds.includes(noticeId)) {
+            notices.push({
+              id: noticeId,
+              planId: ep.id,
+              category: ep.category,
+              kpiName: ep.title,
+              periodType: 'quarter',
+              periodName: `${q.toUpperCase()} (Staff: ${emp?.name || 'Staff'})`,
+              target: qData.target,
+              actual: qData.actual,
+              deficit,
+              metricUnit: ep.metricUnit,
+              severity: 'Medium',
+              source: 'employee',
+              employeeId: ep.employeeId,
+              employeeName: emp?.name,
+              detectedAt: now,
+            });
+          }
+        }
+      });
+    });
+
+    return notices;
+  }, [periodicPlans, employeePlans, employees, dismissedNoticeIds]);
+
+  const convertNoticeToBacklogPlan = async (notice: BacklogNotice, assignedEmployeeId?: number) => {
+    const newBacklog: Omit<BacklogPlanItem, 'id'> = {
+      category: notice.category,
+      title: `${notice.kpiName} [${notice.periodName} Deficit Recovery]`,
+      metricUnit: notice.metricUnit,
+      backlogTarget: notice.deficit,
+      backlogActual: 0,
+      originPeriod: `${notice.periodName} Performance Shortfall`,
+      targetResolutionDate: 'End of Current Quarter',
+      priority: notice.severity === 'High' ? 'Urgent' : 'High',
+      status: 'Pending',
+      assignedEmployeeId: assignedEmployeeId || notice.employeeId,
+      assignedDate: new Date().toISOString().split('T')[0],
+      notes: `Auto-generated from ${notice.source === 'branch' ? 'branch plan' : 'staff scorecard'} variation. Planned: ${notice.target.toLocaleString()} ${notice.metricUnit}, Actual: ${notice.actual.toLocaleString()} ${notice.metricUnit}.`,
+    };
+    await addBacklogPlan(newBacklog);
+    dismissNotice(notice.id);
+  };
+
+  const getDepositMobilizationMetrics = useCallback((targetBranchId?: number): DepositMobilizationMetrics => {
+    const branchToUse = branches.find(b => b.id === (targetBranchId || activeBranchId)) || branches[0];
+    const juneBaseline = branchToUse?.juneClosingDepositBalance || 320000000;
+
+    const depositPeriodicPlan = periodicPlans.find(p =>
+      p.category.toLowerCase().includes('deposit') || p.name.toLowerCase().includes('deposit')
+    ) || periodicPlans[0];
+
+    const annualTargetIncrement = depositPeriodicPlan?.annualTarget || 14594360;
+    const actualNetIncrement = depositPeriodicPlan?.annualActual || 12500000;
+    const currentDepositBalance = juneBaseline + actualNetIncrement;
+    const netVariance = actualNetIncrement - annualTargetIncrement;
+    const incrementAchievement = annualTargetIncrement > 0
+      ? Math.round((actualNetIncrement / annualTargetIncrement) * 100)
+      : 100;
+    const isUnderJuneBalance = actualNetIncrement < 0;
+    const underJuneBalanceAmount = isUnderJuneBalance ? Math.abs(actualNetIncrement) : 0;
+
+    const quarterlyIncrements = {
+      q1: {
+        target: depositPeriodicPlan?.quarterly.q1.target || 0,
+        actual: depositPeriodicPlan?.quarterly.q1.actual || 0,
+        variance: (depositPeriodicPlan?.quarterly.q1.actual || 0) - (depositPeriodicPlan?.quarterly.q1.target || 0),
+        achievement: depositPeriodicPlan?.quarterly.q1.target
+          ? Math.round(((depositPeriodicPlan.quarterly.q1.actual) / depositPeriodicPlan.quarterly.q1.target) * 100)
+          : 0,
+      },
+      q2: {
+        target: depositPeriodicPlan?.quarterly.q2.target || 0,
+        actual: depositPeriodicPlan?.quarterly.q2.actual || 0,
+        variance: (depositPeriodicPlan?.quarterly.q2.actual || 0) - (depositPeriodicPlan?.quarterly.q2.target || 0),
+        achievement: depositPeriodicPlan?.quarterly.q2.target
+          ? Math.round(((depositPeriodicPlan.quarterly.q2.actual) / depositPeriodicPlan.quarterly.q2.target) * 100)
+          : 0,
+      },
+      q3: {
+        target: depositPeriodicPlan?.quarterly.q3.target || 0,
+        actual: depositPeriodicPlan?.quarterly.q3.actual || 0,
+        variance: (depositPeriodicPlan?.quarterly.q3.actual || 0) - (depositPeriodicPlan?.quarterly.q3.target || 0),
+        achievement: depositPeriodicPlan?.quarterly.q3.target
+          ? Math.round(((depositPeriodicPlan.quarterly.q3.actual) / depositPeriodicPlan.quarterly.q3.target) * 100)
+          : 0,
+      },
+      q4: {
+        target: depositPeriodicPlan?.quarterly.q4.target || 0,
+        actual: depositPeriodicPlan?.quarterly.q4.actual || 0,
+        variance: (depositPeriodicPlan?.quarterly.q4.actual || 0) - (depositPeriodicPlan?.quarterly.q4.target || 0),
+        achievement: depositPeriodicPlan?.quarterly.q4.target
+          ? Math.round(((depositPeriodicPlan.quarterly.q4.actual) / depositPeriodicPlan.quarterly.q4.target) * 100)
+          : 0,
+      },
+    };
+
+    const monthlyIncrements: { [m: number]: { target: number; actual: number; variance: number; achievement: number } } = {};
+    for (let m = 1; m <= 12; m++) {
+      const mData = depositPeriodicPlan?.monthly[m] || { target: 0, actual: 0 };
+      monthlyIncrements[m] = {
+        target: mData.target,
+        actual: mData.actual,
+        variance: mData.actual - mData.target,
+        achievement: mData.target > 0 ? Math.round((mData.actual / mData.target) * 100) : 0,
+      };
+    }
+
+    return {
+      juneBaseline,
+      annualTargetIncrement,
+      actualNetIncrement,
+      currentDepositBalance,
+      incrementAchievement,
+      netVariance,
+      isUnderJuneBalance,
+      underJuneBalanceAmount,
+      quarterlyIncrements,
+      monthlyIncrements,
+    };
+  }, [branches, activeBranchId, periodicPlans]);
+
   const value = {
     employees,
     branches,
+    activeBranchId,
+    setActiveBranchId,
+    fiscalYear,
+    setFiscalYear,
     annualPlan,
     kpis,
     periodicPlans,
@@ -652,6 +1025,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addEmployee,
     updateEmployee,
     deleteEmployee,
+    addBranch,
+    updateBranch,
+    deleteBranch,
+    movePlanToBranch,
     addObjective,
     updateObjective,
     deleteObjective,
@@ -672,6 +1049,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateKpiCategory,
     deleteKpiCategory,
     createFullKpi,
+    getCalculatedBacklogNotices,
+    convertNoticeToBacklogPlan,
+    dismissNotice,
+    getDepositMobilizationMetrics,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

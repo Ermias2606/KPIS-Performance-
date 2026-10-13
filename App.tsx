@@ -8,6 +8,8 @@ import EmployeesPage from './pages/EmployeesPage';
 import EmployeeDetailPage from './pages/EmployeeDetailPage';
 import AnnualPlanPage from './pages/AnnualPlanPage';
 import ReportsPage from './pages/ReportsPage';
+import BranchAdminPage from './pages/BranchAdminPage';
+import BranchNetworkPage from './pages/BranchNetworkPage';
 import Header from './components/layout/Header';
 import Sidebar from './components/layout/Sidebar';
 import { AuthContext, AuthProvider } from './context/AuthContext';
@@ -78,6 +80,8 @@ const Main: React.FC = () => {
             <Route path="/employees/:id" element={<EmployeeDetailPage />} />
             <Route path="/plan" element={<AnnualPlanPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/admin/branch-setup" element={<BranchAdminPage />} />
+            <Route path="/network" element={<BranchNetworkPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>

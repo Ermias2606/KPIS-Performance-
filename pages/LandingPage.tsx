@@ -10,9 +10,20 @@ export const LandingPage: React.FC = () => {
   const [activePerspective, setActivePerspective] = useState<PerspectiveCategory>(
     PerspectiveCategory.FINANCIAL
   );
+
+  // Interactive BSC Simulator states
   const [depositSlider, setDepositSlider] = useState(380); // Millions ETB
   const [digitalSlider, setDigitalSlider] = useState(4800); // Users
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Interactive June Baseline Deposit Increment Simulator states
+  const [juneBaselineSlider, setJuneBaselineSlider] = useState(320); // 320M ETB baseline
+  const [mobilizedIncrementSlider, setMobilizedIncrementSlider] = useState(12.5); // +12.5M ETB actual mobilized
+  const targetAnnualIncrement = 14.6; // +14.6M ETB planned increment
+
+  const currentTotalDepositBalance = parseFloat((juneBaselineSlider + mobilizedIncrementSlider).toFixed(2));
+  const isUnderJuneBaseline = mobilizedIncrementSlider < 0;
+  const incrementAchievementRate = Math.min(150, Math.round((Math.max(0, mobilizedIncrementSlider) / targetAnnualIncrement) * 100));
 
   const handleGoogleLogin = async () => {
     setLoginError(null);
@@ -84,7 +95,7 @@ export const LandingPage: React.FC = () => {
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
             <span className="font-medium text-white">Raitu Branch Performance Operating System</span>
             <span className="text-slate-500">|</span>
-            <span className="text-slate-400">Offline-First PWA with Firestore Cloud Sync</span>
+            <span className="text-slate-400">Offline-First PWA • Firestore Cloud Sync • Auto-Backlog Engine</span>
           </div>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1.5">
@@ -105,7 +116,7 @@ export const LandingPage: React.FC = () => {
             </div>
             <div>
               <span className="text-base font-bold text-slate-900 block leading-tight">Raitu Branch</span>
-              <span className="text-xs text-slate-500 font-medium">Performance Tracker & BSC</span>
+              <span className="text-xs text-slate-500 font-medium">Performance Tracker & BSC Portal</span>
             </div>
           </div>
 
@@ -113,7 +124,7 @@ export const LandingPage: React.FC = () => {
             {user ? (
               <div className="flex items-center space-x-3">
                 <span className="text-xs text-slate-600 hidden sm:inline">
-                  Signed in as <strong className="text-slate-900">{user.name}</strong> ({user.role})
+                  Signed in as <strong className="text-slate-900">{user.name}</strong> ({user.positionTitle || user.role})
                 </span>
                 <button
                   onClick={() => navigate('/dashboard')}
@@ -124,6 +135,15 @@ export const LandingPage: React.FC = () => {
               </div>
             ) : (
               <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => navigate('/network')}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-sky-700 hover:text-sky-900 hover:bg-sky-50 rounded-xl transition cursor-pointer border border-sky-200"
+                >
+                  <svg className="w-3.5 h-3.5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                  </svg>
+                  Branch LAN Hub
+                </button>
                 <button
                   onClick={() => navigate('/login')}
                   className="px-3.5 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition"
@@ -153,7 +173,7 @@ export const LandingPage: React.FC = () => {
                       d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                     />
                   </svg>
-                  <span>{isGoogleLoading ? 'Connecting...' : 'Google Sign-In'}</span>
+                  <span>Google Sign-In</span>
                 </button>
               </div>
             )}
@@ -161,74 +181,66 @@ export const LandingPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
+      {/* Main Content */}
       <main className="flex-1">
-        <section className="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 border-b border-slate-200 bg-white">
+        {/* Hero Section */}
+        <section className="relative overflow-hidden bg-gradient-to-b from-white via-slate-50 to-slate-100 py-16 sm:py-24 border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-              {/* Left Column: Vision & CTA */}
+              {/* Left Column: Brief and Headline */}
               <div className="lg:col-span-7 space-y-6">
-                <div className="inline-flex items-center space-x-2 text-xs font-semibold text-sky-800 bg-sky-50 px-3 py-1 rounded-md border border-sky-200">
-                  <span>Fiscal Year 2026 Strategic Execution</span>
-                  <span>·</span>
-                  <span>Balanced Scorecard</span>
+                <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-800 text-xs font-semibold">
+                  <span>🏛️</span>
+                  <span>Raitu Branch Performance & BSC Operating System</span>
                 </div>
 
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                  High-Precision Branch Banking & Employee Performance.
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-tight">
+                  Commercial Banking Performance, <span className="text-sky-600">Reimagined.</span>
                 </h1>
 
-                <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl">
-                  Empowering <strong>Raitu Branch</strong> leadership and staff to map annual strategic objectives,
-                  monitor monthly targets, clear backlog arrears, and dynamically evaluate BSC performance —
-                  seamlessly offline with continuous Firestore cloud synchronization.
+                <p className="text-base sm:text-lg text-slate-600 max-w-2xl leading-relaxed">
+                  Precision performance management for Raitu Branch. Seamlessly track Annual Plans, quarterly & monthly targets, June baseline deposit mobilization, automated shortfall backlogs, and cascaded staff scorecards.
                 </p>
 
                 {loginError && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium">
                     {loginError}
                   </div>
                 )}
 
+                {/* Primary Action Buttons */}
                 <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <button
+                    onClick={() => navigate(user ? '/dashboard' : '/login')}
+                    className="px-6 py-3.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-sky-200 transition-all flex items-center space-x-2 cursor-pointer"
+                  >
+                    <span>{user ? 'Open Banking Dashboard' : 'Launch System with PIN'}</span>
+                    <span>&rarr;</span>
+                  </button>
+
                   <button
                     onClick={handleGoogleLogin}
                     disabled={isGoogleLoading}
-                    className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold shadow-md shadow-sky-200 transition flex items-center space-x-2"
+                    className="px-5 py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold shadow-md transition flex items-center space-x-2 cursor-pointer disabled:opacity-75"
                   >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24">
-                      <path
-                        fill="#fff"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#fff"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#fff"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#fff"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
                     <span>{isGoogleLoading ? 'Signing In...' : 'Sign In with Google'}</span>
                   </button>
 
-                  <button
-                    onClick={() => navigate('/login')}
-                    className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold transition"
-                  >
-                    Quick PIN Access
-                  </button>
-
                   <PWAInstallButton variant="button" />
+
+                  <button
+                    onClick={() => navigate('/network')}
+                    className="px-4 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold shadow-xs transition flex items-center space-x-2 cursor-pointer border border-slate-300"
+                  >
+                    <svg className="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                    </svg>
+                    <span>Connect Branch Devices (LAN)</span>
+                  </button>
                 </div>
 
                 {/* Key Metrics Summary Bar */}
-                <div className="grid grid-cols-3 gap-4 pt-6 border-t border-slate-100">
+                <div className="grid grid-cols-3 gap-4 pt-6 border-t border-slate-200">
                   <div>
                     <span className="block text-2xl font-black text-slate-900">4</span>
                     <span className="text-xs text-slate-500 font-medium">BSC Perspectives</span>
@@ -238,8 +250,8 @@ export const LandingPage: React.FC = () => {
                     <span className="text-xs text-slate-500 font-medium">Offline Capable</span>
                   </div>
                   <div>
-                    <span className="block text-2xl font-black text-sky-600">Firestore</span>
-                    <span className="text-xs text-slate-500 font-medium">Real-Time Cloud DB</span>
+                    <span className="block text-2xl font-black text-sky-600">June Baseline</span>
+                    <span className="text-xs text-slate-500 font-medium">Increment Tracking</span>
                   </div>
                 </div>
               </div>
@@ -278,22 +290,23 @@ export const LandingPage: React.FC = () => {
                       <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
                         <span>200M (Base)</span>
                         <span>Achievement: {depositScore}%</span>
-                        <span>500M (Stretch)</span>
+                        <span>500M (Max)</span>
                       </div>
                     </div>
 
                     <div>
                       <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1">
-                        <span>Mobile Banking Users:</span>
-                        <span className="text-indigo-700 font-bold">{digitalSlider} / 5,000 Target</span>
+                        <span>Digital Banking Users (CBEBirr / App):</span>
+                        <span className="text-purple-700 font-bold">{digitalSlider} Users / 5,000 Target</span>
                       </div>
                       <input
                         type="range"
                         min="2000"
                         max="6000"
+                        step="100"
                         value={digitalSlider}
                         onChange={(e) => setDigitalSlider(Number(e.target.value))}
-                        className="w-full accent-indigo-600 h-2 bg-slate-100 rounded-lg cursor-pointer"
+                        className="w-full accent-purple-600 h-2 bg-slate-100 rounded-lg cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
                         <span>2,000 Users</span>
@@ -303,38 +316,31 @@ export const LandingPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Live Mini Scorecard Breakdown */}
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2 text-xs">
-                    <div className="flex items-center justify-between text-slate-700">
-                      <span className="font-medium">Financial Perspective (40% Weight)</span>
-                      <span className="font-bold text-slate-900">{depositScore}% Achieved</span>
+                  {/* Dynamic Simulation Highlights */}
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1.5">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Financial Perspective (40%):</span>
+                      <strong className="text-slate-800">{depositScore}% Achieved</strong>
                     </div>
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-sky-600 h-full rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(100, depositScore)}%` }}
-                      />
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Internal Process (20%):</span>
+                      <strong className="text-slate-800">{digitalScore}% Achieved</strong>
                     </div>
-
-                    <div className="flex items-center justify-between text-slate-700 pt-1">
-                      <span className="font-medium">Internal Business Process (20% Weight)</span>
-                      <span className="font-bold text-slate-900">{digitalScore}% Achieved</span>
-                    </div>
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-indigo-600 h-full rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(100, digitalScore)}%` }}
-                      />
+                    <div className="flex justify-between pt-1 border-t border-slate-200">
+                      <span className="font-semibold text-slate-700">Audit Classification:</span>
+                      <strong className={`font-bold ${compositeScore >= 85 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {compositeScore >= 85 ? 'Outstanding (Grade A)' : 'Satisfactory (Grade B)'}
+                      </strong>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                    <span>Synchronized with IndexedDB & Firestore</span>
+                  <div className="mt-4 pt-3 border-t border-slate-100 text-center">
                     <button
-                      onClick={() => navigate('/login')}
-                      className="font-semibold text-sky-600 hover:text-sky-700"
+                      onClick={() => navigate('/dashboard')}
+                      className="text-xs text-sky-600 hover:text-sky-700 font-semibold inline-flex items-center space-x-1"
                     >
-                      Login to Save &rarr;
+                      <span>Explore full interactive dashboard</span>
+                      <span>&rarr;</span>
                     </button>
                   </div>
                 </div>
@@ -343,7 +349,116 @@ export const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Section: Balanced Scorecard 4 Perspectives Explorer */}
+        {/* NEW INTERACTIVE SECTION: JUNE BASELINE DEPOSIT MOBILIZATION SIMULATOR */}
+        <section className="py-16 bg-white border-b border-slate-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-3xl mx-auto mb-10">
+              <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-3 py-1 rounded-full border border-sky-200">
+                Strategic Deposit Benchmark
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">
+                End of Previous Year (June) Closing Balance & Increment Simulator
+              </h2>
+              <p className="text-sm text-slate-600 mt-2">
+                Evaluate true balance sheet growth by benchmarking against the audited June 30 closing balance. Dynamically simulate target increments, net deposit expansion, or under-June erosion.
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-slate-50 via-white to-sky-50/30 rounded-2xl border border-slate-200 p-6 sm:p-8 max-w-4xl mx-auto shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                {/* Sliders */}
+                <div className="space-y-5">
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1.5">
+                      <span>June Audited Closing Baseline:</span>
+                      <span className="font-mono text-slate-900 font-bold">{juneBaselineSlider}M ETB</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="200"
+                      max="600"
+                      step="10"
+                      value={juneBaselineSlider}
+                      onChange={(e) => setJuneBaselineSlider(Number(e.target.value))}
+                      className="w-full accent-sky-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
+                    />
+                    <span className="text-[10px] text-slate-400">Baseline as of June 30 previous fiscal year</span>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1.5">
+                      <span>Actual Net Increment Mobilized:</span>
+                      <span className={`font-mono font-bold ${isUnderJuneBaseline ? 'text-red-600' : 'text-emerald-700'}`}>
+                        {isUnderJuneBaseline ? '' : '+'}{mobilizedIncrementSlider}M ETB
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-20"
+                      max="40"
+                      step="0.5"
+                      value={mobilizedIncrementSlider}
+                      onChange={(e) => setMobilizedIncrementSlider(Number(e.target.value))}
+                      className="w-full accent-emerald-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400">
+                      <span>-20M (Erosion)</span>
+                      <span>Target Increment: +{targetAnnualIncrement}M ETB</span>
+                      <span>+40M (Expansion)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Output Card */}
+                <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-md space-y-4">
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Calculated Closing Balance
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                      isUnderJuneBaseline ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {isUnderJuneBaseline ? 'Under June Baseline' : 'Above June Baseline'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">June 30 Baseline Balance:</span>
+                      <strong className="font-mono text-slate-800">{juneBaselineSlider}.00M ETB</strong>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">Net Growth over June:</span>
+                      <strong className={`font-mono ${isUnderJuneBaseline ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {isUnderJuneBaseline ? '' : '+'}{mobilizedIncrementSlider.toFixed(2)}M ETB
+                      </strong>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">Annual Target Increment:</span>
+                      <strong className="font-mono text-sky-700">+{targetAnnualIncrement}M ETB</strong>
+                    </div>
+                    <div className="flex justify-between text-base pt-2 border-t border-slate-100 font-bold">
+                      <span className="text-slate-900">Total Current Deposit:</span>
+                      <span className="font-mono text-slate-900">{currentTotalDepositBalance}M ETB</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-600">
+                    Target Increment Achievement: <strong className="text-slate-900">{incrementAchievementRate}%</strong>
+                    <div className="w-full bg-slate-200 h-2 rounded-full mt-1.5 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${isUnderJuneBaseline ? 'bg-red-500' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min(100, Math.max(0, incrementAchievementRate))}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION: 4 BSC PERSPECTIVES */}
         <section className="py-16 bg-slate-50 border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-10">
@@ -416,40 +531,57 @@ export const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Section: Offline PWA & Cloud Synchronization */}
+        {/* Section: Features Highlights */}
         <section className="py-16 bg-white border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-lg">
                   ⚡
                 </div>
-                <h3 className="text-base font-bold text-slate-900">Zero Interruption Offline Mode</h3>
+                <h3 className="text-sm font-bold text-slate-900">Offline PWA</h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Engineered with IndexedDB caching and Service Worker precaching. Staff can enter daily numbers and
-                  evaluate scores even in remote or offline branch conditions.
+                  Engineered with IndexedDB caching and Workbox service worker precaching. Works uninterrupted without internet connection.
                 </p>
               </div>
 
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg">
                   ☁️
                 </div>
-                <h3 className="text-base font-bold text-slate-900">Firestore Cloud Sync</h3>
+                <h3 className="text-sm font-bold text-slate-900">Firestore Cloud Sync</h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Automatic bidirectional sync between local branch storage and Google Cloud Firestore. Changes sync
-                  seamlessly when connectivity is detected.
+                  Automatic bidirectional cloud sync between local branch storage and Google Cloud Firestore database.
                 </p>
               </div>
 
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
-                  🛡️
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg">
+                  🎯
                 </div>
-                <h3 className="text-base font-bold text-slate-900">Google Auth & Multi-Role RBAC</h3>
+                <h3 className="text-sm font-bold text-slate-900">Auto-Backlog Engine</h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Secure identification using Firebase Google Sign-In and role-based permissions (Branch Admin, Manager,
-                  and Staff) with individual scorecards.
+                  Scans period variations (Plan minus Actual). Alerts administrators of shortfalls and generates one-click recovery tasks.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg">
+                  🏢
+                </div>
+                <h3 className="text-sm font-bold text-slate-900">Branch & Fiscal Cycles</h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Create branches, configure custom Ethiopian / Gregorian fiscal years, and track previous June closing balance baselines.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                  🌐
+                </div>
+                <h3 className="text-sm font-bold text-slate-900">Branch LAN & Devices</h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Connect multiple tellers, managers, and mobile staff over branch LAN/Wi-Fi with instant QR code pairing and live peer sync.
                 </p>
               </div>
             </div>
@@ -462,7 +594,7 @@ export const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <span className="text-white font-bold text-sm block">Raitu Branch Performance Tracker</span>
-            <span className="text-slate-500">Commercial Bank Performance Management System · FY 2026</span>
+            <span className="text-slate-500">Balanced Scorecard & Performance Management System · Offline-First PWA</span>
           </div>
 
           <div className="flex items-center space-x-4">
@@ -471,6 +603,13 @@ export const LandingPage: React.FC = () => {
               className="text-slate-300 hover:text-white transition"
             >
               Sign In
+            </button>
+            <span className="text-slate-600">·</span>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="text-slate-300 hover:text-white transition"
+            >
+              Dashboard
             </button>
             <span className="text-slate-600">·</span>
             <PWAInstallButton variant="compact" />

@@ -307,9 +307,16 @@ const EmployeeDetailPage: React.FC = () => {
     }
   };
 
-  const handleDeleteKpi = async (kpiId: number) => {
-    if (window.confirm('Are you sure you want to delete this KPI?')) {
-      await deleteKpi(kpiId);
+  const [kpiToDelete, setKpiToDelete] = useState<number | null>(null);
+
+  const handleDeleteKpi = (kpiId: number) => {
+    setKpiToDelete(kpiId);
+  };
+
+  const confirmDeleteKpi = async () => {
+    if (kpiToDelete !== null) {
+      await deleteKpi(kpiToDelete);
+      setKpiToDelete(null);
     }
   };
 
@@ -328,11 +335,17 @@ const EmployeeDetailPage: React.FC = () => {
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-2xl md:text-3xl font-bold text-slate-800">{employee.name}</h2>
-              <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">
+              <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-sky-100 text-sky-800 border border-sky-200">
+                {employee.positionTitle || employee.role}
+              </span>
+              <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-700">
                 {employee.role}
               </span>
             </div>
-            <p className="text-sm text-slate-500 mt-1">{branchName} • PIN: <span className="font-mono">{employee.pin}</span></p>
+            <p className="text-sm text-slate-500 mt-1">
+              {branchName} • PIN: <span className="font-mono">{employee.pin}</span>
+              {employee.email && ` • ${employee.email}`}
+            </p>
           </div>
 
           <div className="flex items-center gap-4">
@@ -512,6 +525,39 @@ const EmployeeDetailPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete KPI Confirmation Modal */}
+      {kpiToDelete !== null && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-bold text-slate-800">Delete this KPI?</h3>
+              <p className="text-xs text-slate-500 mt-1">This will remove the target and actual metric from this employee's scorecard.</p>
+            </div>
+            <div className="flex space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setKpiToDelete(null)}
+                className="flex-1 py-2 text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteKpi}
+                className="flex-1 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg font-medium shadow-sm transition cursor-pointer"
+              >
+                Delete KPI
+              </button>
+            </div>
           </div>
         </div>
       )}

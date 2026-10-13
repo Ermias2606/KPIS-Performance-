@@ -41,6 +41,8 @@ export const DashboardPage: React.FC = () => {
     loading,
     recordActualPerformance,
     recordEmployeePerformance,
+    getDepositMobilizationMetrics,
+    getCalculatedBacklogNotices,
   } = useData();
 
   // Modals
@@ -96,6 +98,15 @@ export const DashboardPage: React.FC = () => {
     }, 0);
     return parseFloat(scoreSum.toFixed(2));
   }, [targetStaff, userKpis, annualPlan]);
+
+  // Deposit baseline & Backlog notice metrics
+  const depositMetrics = useMemo(() => {
+    return getDepositMobilizationMetrics(user?.branchId);
+  }, [getDepositMobilizationMetrics, user]);
+
+  const backlogNotices = useMemo(() => {
+    return getCalculatedBacklogNotices();
+  }, [getCalculatedBacklogNotices]);
 
   // Backlogs assigned to this staff member
   const myBacklogs = useMemo(() => {
@@ -364,6 +375,83 @@ export const DashboardPage: React.FC = () => {
           >
             <span>Strategic Plan</span>
             <span>&rarr;</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Admin Automated Backlog Detection Alert Banner */}
+      {isAdmin && backlogNotices.length > 0 && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 animate-fade-in shadow-xs">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-amber-200 text-amber-800 rounded-xl">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <p className="text-sm font-bold text-amber-900">
+                  {backlogNotices.length} Performance Deficits Detected by Auto-Backlog Engine
+                </p>
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-200 text-amber-900 rounded-full">
+                  Action Required
+                </span>
+              </div>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Periodic shortfalls detected in quarterly or monthly plans. Generate recovery plans and assign to staff.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 self-end sm:self-center">
+            <Link
+              to="/admin/branch-setup"
+              className="px-3.5 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-xl text-xs font-semibold shadow-xs transition"
+            >
+              Open Branch Admin &rarr;
+            </Link>
+            <Link
+              to="/reports"
+              className="px-3.5 py-2 bg-white border border-amber-300 text-amber-900 hover:bg-amber-100/50 rounded-xl text-xs font-semibold transition"
+            >
+              View Reports
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* June Closing Deposit Baseline & Increment Analysis Strip */}
+      <div className="bg-gradient-to-r from-sky-900 via-sky-800 to-indigo-900 text-white p-5 rounded-2xl shadow-md border border-sky-700/50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-sky-700/60 border border-sky-500/30">
+              Deposit Mobilization Benchmark
+            </span>
+            <span className="text-xs text-sky-200 font-mono">
+              FY {branches.find(b => b.id === user?.branchId)?.fiscalYear || '2024/2025'}
+            </span>
+          </div>
+          <h3 className="text-lg font-bold mt-1 text-white">
+            June Baseline: {(depositMetrics.juneBaseline / 1000000).toFixed(2)}M ETB • Current Closing Balance: {(depositMetrics.currentDepositBalance / 1000000).toFixed(2)}M ETB
+          </h3>
+          <p className="text-xs text-sky-200 mt-0.5">
+            Net Increment Mobilized: <strong>+{(depositMetrics.actualNetIncrement / 1000000).toFixed(2)}M ETB</strong> (Target: +{(depositMetrics.annualTargetIncrement / 1000000).toFixed(2)}M ETB, {depositMetrics.incrementAchievement}% Achieved)
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-3 self-end lg:self-center">
+          <div className="text-right">
+            <span className="text-[11px] text-sky-200 block">Baseline Growth Status</span>
+            <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full ${
+              depositMetrics.isUnderJuneBalance ? 'bg-red-500/80 text-white' : 'bg-emerald-500/90 text-white'
+            }`}>
+              {depositMetrics.isUnderJuneBalance ? 'Under June Balance' : 'Above June Baseline (Net Surplus)'}
+            </span>
+          </div>
+          <Link
+            to="/reports"
+            className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs font-semibold transition"
+          >
+            Audit Details &rarr;
           </Link>
         </div>
       </div>

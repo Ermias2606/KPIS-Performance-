@@ -22,6 +22,8 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     if (path.startsWith('employees')) return 'Employee Management';
     if (path === 'plan') return '2026 Annual Plan Objectives';
     if (path === 'reports') return 'Performance Reports & Exports';
+    if (path === 'network') return 'Branch LAN & Multi-Device Hub';
+    if (path === 'admin') return 'Branch & Fiscal Year Setup';
     return path.charAt(0).toUpperCase() + path.slice(1);
   };
 
@@ -53,6 +55,18 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       </div>
 
       <div className="flex items-center space-x-3 md:space-x-4">
+        {/* Branch LAN & Devices Button */}
+        <button
+          onClick={() => navigate('/network')}
+          title="Connect Branch Devices & LAN Setup"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 rounded-lg border border-sky-200 transition cursor-pointer"
+        >
+          <svg className="w-3.5 h-3.5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+          </svg>
+          <span className="hidden sm:inline">Branch LAN</span>
+        </button>
+
         {/* PWA Install Button */}
         <PWAInstallButton variant="compact" />
 

@@ -9,6 +9,11 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      hmr: false,
+    },
+    preview: {
+      port: 3000,
+      host: '0.0.0.0',
     },
     build: {
       chunkSizeWarningLimit: 1200,

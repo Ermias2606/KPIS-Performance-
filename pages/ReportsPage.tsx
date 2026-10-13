@@ -1,62 +1,349 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useMemo } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { useData } from '../context/DataContext';
+import { useData, calculateKpiMetrics } from '../context/DataContext';
 import { AuthContext } from '../context/AuthContext';
 import Card from '../components/ui/Card';
-import { Employee, Role } from '../types';
-import { calculateKpiMetrics } from '../context/DataContext';
+import { Employee, Role, PerspectiveCategory, PeriodicPlanItem, EmployeePlanAssignment } from '../types';
 
-const ReportsPage: React.FC = () => {
+export const ReportsPage: React.FC = () => {
   const { user } = useContext(AuthContext);
-  const { employees, branches, annualPlan, kpis, loading } = useData();
+  const {
+    employees,
+    branches,
+    activeBranchId,
+    fiscalYear,
+    annualPlan,
+    kpis,
+    periodicPlans,
+    backlogPlans,
+    employeePlans,
+    kpiCategories,
+    loading,
+    getDepositMobilizationMetrics,
+  } = useData();
+
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<number | 'ALL'>('ALL');
+  const [activeReportTab, setActiveReportTab] = useState<'backlog' | 'kpis' | 'deposit' | 'scorecards'>('backlog');
+  const [periodTab, setPeriodTab] = useState<'all' | 'quarterly' | 'monthly'>('all');
+  const [selectedQuarter, setSelectedQuarter] = useState<'all' | 'q1' | 'q2' | 'q3' | 'q4'>('all');
   const [exportingId, setExportingId] = useState<number | null>(null);
 
-  const getBranchEmployees = () => {
+  const activeBranch = useMemo(() => {
+    return branches.find(b => b.id === (user?.branchId || activeBranchId)) || branches[0];
+  }, [branches, user, activeBranchId]);
+
+  const branchName = activeBranch?.name || 'Raitu Branch';
+  const branchCode = activeBranch?.code || 'RTU-01';
+
+  const depositMetrics = useMemo(() => {
+    return getDepositMobilizationMetrics(activeBranch?.id);
+  }, [getDepositMobilizationMetrics, activeBranch]);
+
+  // Branch employees
+  const branchEmployees = useMemo(() => {
     if (!user) return [];
     return user.role === Role.ADMIN
       ? employees.filter(e => e.role !== Role.ADMIN)
       : employees.filter(e => e.branchId === user.branchId && e.role !== Role.ADMIN);
-  };
+  }, [user, employees]);
 
-  const branchName = branches.find(b => b.id === user?.branchId)?.name || 'Raitu Branch';
+  // Backlog and variation calculations across periodic plans and employee plans
+  const calculatedVariations = useMemo(() => {
+    const list: Array<{
+      id: string;
+      source: 'branch' | 'employee';
+      employeeName?: string;
+      planTitle: string;
+      category: string;
+      unit: string;
+      periodType: 'quarter' | 'month' | 'annual';
+      periodKey: string;
+      periodLabel: string;
+      target: number;
+      actual: number;
+      variance: number; // actual - target
+      deficit: number;  // target - actual when target > actual
+      achievement: number;
+      status: 'Surplus' | 'On Track' | 'Minor Lag' | 'Critical Shortfall';
+    }> = [];
 
-  const exportToCSV = () => {
-    const reportData = getBranchEmployees().map(employee => {
-      const employeeKpis = kpis.filter(k => k.employeeId === employee.id);
-      const totalScore = employeeKpis.reduce((acc, kpi) => {
-        const objective = annualPlan.find(p => p.id === kpi.objectiveId);
-        return acc + (objective ? calculateKpiMetrics(kpi, objective).score : 0);
+    // Periodic Plans (Branch Level)
+    periodicPlans.forEach(plan => {
+      // Annual
+      if (plan.annualTarget > 0) {
+        const variance = plan.annualActual - plan.annualTarget;
+        const deficit = plan.annualTarget > plan.annualActual ? plan.annualTarget - plan.annualActual : 0;
+        const achievement = Math.round((plan.annualActual / plan.annualTarget) * 100);
+        list.push({
+          id: `var-ann-${plan.id}`,
+          source: 'branch',
+          planTitle: plan.name,
+          category: plan.category,
+          unit: plan.metricUnit,
+          periodType: 'annual',
+          periodKey: 'annual',
+          periodLabel: 'Full Fiscal Year',
+          target: plan.annualTarget,
+          actual: plan.annualActual,
+          variance,
+          deficit,
+          achievement,
+          status: achievement >= 100 ? 'Surplus' : achievement >= 80 ? 'On Track' : achievement >= 60 ? 'Minor Lag' : 'Critical Shortfall',
+        });
+      }
+
+      // Quarters
+      const quarters = ['q1', 'q2', 'q3', 'q4'] as const;
+      quarters.forEach(q => {
+        const qData = plan.quarterly[q];
+        if (qData && qData.target > 0) {
+          const variance = qData.actual - qData.target;
+          const deficit = qData.target > qData.actual ? qData.target - qData.actual : 0;
+          const achievement = Math.round((qData.actual / qData.target) * 100);
+          list.push({
+            id: `var-q-${plan.id}-${q}`,
+            source: 'branch',
+            planTitle: plan.name,
+            category: plan.category,
+            unit: plan.metricUnit,
+            periodType: 'quarter',
+            periodKey: q,
+            periodLabel: q.toUpperCase(),
+            target: qData.target,
+            actual: qData.actual,
+            variance,
+            deficit,
+            achievement,
+            status: achievement >= 100 ? 'Surplus' : achievement >= 80 ? 'On Track' : achievement >= 60 ? 'Minor Lag' : 'Critical Shortfall',
+          });
+        }
+      });
+
+      // Months 1 to 12
+      const monthNames = [
+        'Month 1 (July)', 'Month 2 (August)', 'Month 3 (September)',
+        'Month 4 (October)', 'Month 5 (November)', 'Month 6 (December)',
+        'Month 7 (January)', 'Month 8 (February)', 'Month 9 (March)',
+        'Month 10 (April)', 'Month 11 (May)', 'Month 12 (June)',
+      ];
+      for (let m = 1; m <= 12; m++) {
+        const mData = plan.monthly[m];
+        if (mData && mData.target > 0) {
+          const variance = mData.actual - mData.target;
+          const deficit = mData.target > mData.actual ? mData.target - mData.actual : 0;
+          const achievement = Math.round((mData.actual / mData.target) * 100);
+          list.push({
+            id: `var-m-${plan.id}-${m}`,
+            source: 'branch',
+            planTitle: plan.name,
+            category: plan.category,
+            unit: plan.metricUnit,
+            periodType: 'month',
+            periodKey: `m${m}`,
+            periodLabel: monthNames[m - 1] || `Month ${m}`,
+            target: mData.target,
+            actual: mData.actual,
+            variance,
+            deficit,
+            achievement,
+            status: achievement >= 100 ? 'Surplus' : achievement >= 80 ? 'On Track' : achievement >= 60 ? 'Minor Lag' : 'Critical Shortfall',
+          });
+        }
+      }
+    });
+
+    // Employee Plan Assignments
+    employeePlans.forEach(ep => {
+      const emp = employees.find(e => e.id === ep.employeeId);
+      const quarters = ['q1', 'q2', 'q3', 'q4'] as const;
+      quarters.forEach(q => {
+        const qData = ep.quarterly[q];
+        if (qData && qData.target > 0) {
+          const variance = qData.actual - qData.target;
+          const deficit = qData.target > qData.actual ? qData.target - qData.actual : 0;
+          const achievement = Math.round((qData.actual / qData.target) * 100);
+          list.push({
+            id: `var-emp-${ep.id}-${q}`,
+            source: 'employee',
+            employeeName: emp?.name,
+            planTitle: ep.title,
+            category: ep.category,
+            unit: ep.metricUnit,
+            periodType: 'quarter',
+            periodKey: q,
+            periodLabel: `${q.toUpperCase()} (${emp?.name || 'Staff'})`,
+            target: qData.target,
+            actual: qData.actual,
+            variance,
+            deficit,
+            achievement,
+            status: achievement >= 100 ? 'Surplus' : achievement >= 80 ? 'On Track' : achievement >= 60 ? 'Minor Lag' : 'Critical Shortfall',
+          });
+        }
+      });
+    });
+
+    return list;
+  }, [periodicPlans, employeePlans, employees]);
+
+  // Filtered Variations (for Backlog Summary)
+  const filteredShortfalls = useMemo(() => {
+    return calculatedVariations.filter(v => {
+      if (v.deficit <= 0) return false;
+      if (periodTab === 'quarterly' && v.periodType !== 'quarter') return false;
+      if (periodTab === 'monthly' && v.periodType !== 'month') return false;
+      if (selectedQuarter !== 'all' && v.periodType === 'quarter' && v.periodKey !== selectedQuarter) return false;
+      return true;
+    });
+  }, [calculatedVariations, periodTab, selectedQuarter]);
+
+  // Aggregate stats for Backlog Shortfalls
+  const shortfallStats = useMemo(() => {
+    const totalDeficits = filteredShortfalls.reduce((acc, v) => acc + v.deficit, 0);
+    const criticalCount = filteredShortfalls.filter(v => v.status === 'Critical Shortfall').length;
+    const quarterlyShortfalls = calculatedVariations.filter(v => v.periodType === 'quarter' && v.deficit > 0).length;
+    const monthlyShortfalls = calculatedVariations.filter(v => v.periodType === 'month' && v.deficit > 0).length;
+    return { totalDeficits, criticalCount, quarterlyShortfalls, monthlyShortfalls };
+  }, [filteredShortfalls, calculatedVariations]);
+
+  // Analytical Detailed KPI list
+  const detailedKpisList = useMemo(() => {
+    return annualPlan.map(obj => {
+      const matchingPeriodic = periodicPlans.find(p => p.category === obj.kpiCategory) || {
+        annualTarget: obj.target || 0,
+        annualActual: obj.actual || 0,
+        metricUnit: obj.unit || 'Units',
+        quarterly: {
+          q1: { target: Math.round((obj.target || 0) / 4), actual: Math.round((obj.actual || 0) / 4) },
+          q2: { target: Math.round((obj.target || 0) / 4), actual: Math.round((obj.actual || 0) / 4) },
+          q3: { target: Math.round((obj.target || 0) / 4), actual: Math.round((obj.actual || 0) / 4) },
+          q4: { target: Math.round((obj.target || 0) / 4), actual: Math.max(0, (obj.actual || 0) - Math.round((obj.actual || 0) / 4) * 3) },
+        },
+      };
+
+      const target = obj.target || matchingPeriodic.annualTarget || 1;
+      const actual = obj.actual || matchingPeriodic.annualActual || 0;
+      const achievement = Math.min(120, Math.round((actual / target) * 100));
+      const variance = actual - target;
+      const weight = obj.weight || 20;
+      const score = parseFloat(((achievement / 100) * weight).toFixed(2));
+
+      return {
+        id: obj.id,
+        category: obj.category,
+        kpiCategory: obj.kpiCategory || 'General',
+        name: obj.objective,
+        unit: obj.unit || matchingPeriodic.metricUnit,
+        weight,
+        target,
+        actual,
+        variance,
+        achievement,
+        score,
+        quarterly: matchingPeriodic.quarterly,
+      };
+    });
+  }, [annualPlan, periodicPlans]);
+
+  // Export to Excel with full sheets
+  const exportToExcelFull = () => {
+    const wb = XLSX.utils.book_new();
+
+    // 1. Branch Summary Sheet
+    const branchSummaryData = branchEmployees.map(emp => {
+      const empKpis = kpis.filter(k => k.employeeId === emp.id);
+      const totalScore = empKpis.reduce((acc, kpi) => {
+        const obj = annualPlan.find(p => p.id === kpi.objectiveId);
+        return acc + (obj ? calculateKpiMetrics(kpi, obj).score : 0);
       }, 0);
 
       return {
-        'Employee ID': employee.id,
-        'Name': employee.name,
-        'Role': employee.role,
-        'Branch': branches.find(b => b.id === employee.branchId)?.name || 'N/A',
-        'KPI Count': employeeKpis.length,
-        'Total Score (%)': totalScore.toFixed(2),
+        'Employee ID': emp.id,
+        'Name': emp.name,
+        'Position Title': emp.positionTitle || 'Staff Member',
+        'Role': emp.role,
+        'Branch': branchName,
+        'KPI Count': empKpis.length,
+        'Total BSC Score (%)': totalScore.toFixed(2),
+        'Performance Grade': totalScore >= 90 ? 'Outstanding' : totalScore >= 80 ? 'On Track' : 'Needs Focus',
       };
     });
+    const ws1 = XLSX.utils.json_to_sheet(branchSummaryData);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Staff Scorecards');
 
-    const worksheet = XLSX.utils.json_to_sheet(reportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Branch Summary');
-    XLSX.writeFile(workbook, `Raitu_Branch_Performance_${new Date().getFullYear()}.xlsx`);
+    // 2. Backlog & Period Variances Sheet
+    const backlogData = filteredShortfalls.map(item => ({
+      'Period Level': item.periodType.toUpperCase(),
+      'Period': item.periodLabel,
+      'Metric / Plan': item.planTitle,
+      'Category': item.category,
+      'Target': item.target,
+      'Actual': item.actual,
+      'Deficit (Shortfall)': item.deficit,
+      'Unit': item.unit,
+      'Achievement (%)': `${item.achievement}%`,
+      'Severity': item.status,
+      'Responsible Assignee': item.employeeName || 'Branch Team',
+    }));
+    const ws2 = XLSX.utils.json_to_sheet(backlogData);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Period Shortfalls & Backlog');
+
+    // 3. Deposit Mobilization June Baseline Sheet
+    const depositSheetData = [
+      { Metric: 'Branch Name', Value: branchName },
+      { Metric: 'Branch Code', Value: branchCode },
+      { Metric: 'Fiscal Year', Value: activeBranch?.fiscalYear || fiscalYear },
+      { Metric: 'Audited June Baseline Deposit Balance (ETB)', Value: depositMetrics.juneBaseline },
+      { Metric: 'Annual Mobilization Increment Target (ETB)', Value: depositMetrics.annualTargetIncrement },
+      { Metric: 'Actual Mobilized Increment (ETB)', Value: depositMetrics.actualNetIncrement },
+      { Metric: 'Current Total Deposit Closing Balance (ETB)', Value: depositMetrics.currentDepositBalance },
+      { Metric: 'Net Variance vs Target Increment (ETB)', Value: depositMetrics.netVariance },
+      { Metric: 'Achievement vs Target (%)', Value: `${depositMetrics.incrementAchievement}%` },
+      { Metric: 'Status vs June Baseline', Value: depositMetrics.isUnderJuneBalance ? 'Under June Balance' : 'Above June Baseline' },
+    ];
+    const ws3 = XLSX.utils.json_to_sheet(depositSheetData);
+    XLSX.utils.book_append_sheet(wb, ws3, 'Deposit June Baseline');
+
+    XLSX.writeFile(wb, `Raitu_Branch_Comprehensive_BSC_Audit_${new Date().getFullYear()}.xlsx`);
   };
 
-  const exportBranchSummaryPDF = () => {
+  // Export Executive PDF Summary
+  const exportExecutivePDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
     doc.setTextColor(2, 132, 199);
-    doc.text('Raitu Branch Balanced Scorecard Summary', 14, 20);
+    doc.text('Raitu Branch Balanced Scorecard & Audit Report', 14, 20);
 
     doc.setFontSize(10);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Generated: ${new Date().toLocaleDateString()} | Branch: ${branchName}`, 14, 28);
+    doc.text(
+      `Branch: ${branchName} (${branchCode}) | Fiscal Year: ${activeBranch?.fiscalYear || fiscalYear} | Date: ${new Date().toLocaleDateString()}`,
+      14,
+      27
+    );
 
-    const tableData = getBranchEmployees().map(emp => {
+    // June Deposit Summary Callout
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Deposit Mobilization & Previous June Baseline:', 14, 37);
+
+    doc.setFontSize(9);
+    doc.setTextColor(51, 65, 85);
+    doc.text(
+      `• June Baseline Balance: ${(depositMetrics.juneBaseline / 1000000).toFixed(2)}M ETB   • Current Balance: ${(depositMetrics.currentDepositBalance / 1000000).toFixed(2)}M ETB`,
+      14,
+      43
+    );
+    doc.text(
+      `• Target Increment: +${(depositMetrics.annualTargetIncrement / 1000000).toFixed(2)}M ETB   • Net Growth: +${(depositMetrics.actualNetIncrement / 1000000).toFixed(2)}M ETB (${depositMetrics.incrementAchievement}% Achieved)`,
+      14,
+      48
+    );
+
+    // Employee scorecard table
+    const tableData = branchEmployees.map(emp => {
       const empKpis = kpis.filter(k => k.employeeId === emp.id);
       const total = empKpis.reduce((acc, k) => {
         const obj = annualPlan.find(p => p.id === k.objectiveId);
@@ -64,7 +351,7 @@ const ReportsPage: React.FC = () => {
       }, 0);
       return [
         emp.name,
-        emp.role,
+        emp.positionTitle || emp.role,
         empKpis.length.toString(),
         `${total.toFixed(2)}%`,
         total >= 90 ? 'Outstanding' : total >= 80 ? 'On Track' : 'Needs Focus',
@@ -72,8 +359,8 @@ const ReportsPage: React.FC = () => {
     });
 
     const options = {
-      startY: 36,
-      head: [['Employee Name', 'Role', 'KPI Count', 'Overall Score', 'Status']],
+      startY: 55,
+      head: [['Employee Name', 'Position Title', 'KPI Count', 'Overall Score', 'Status']],
       body: tableData,
       theme: 'grid' as const,
       headStyles: {
@@ -88,7 +375,39 @@ const ReportsPage: React.FC = () => {
       autoTable(doc, options);
     }
 
-    doc.save(`Raitu_Branch_Summary_${new Date().getFullYear()}.pdf`);
+    // Shortfalls Table
+    const lastY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 12 : 120;
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Key Period Shortfalls & Backlog Deficits:', 14, lastY);
+
+    const shortfallRows = filteredShortfalls.slice(0, 10).map(s => [
+      s.periodLabel,
+      s.planTitle,
+      s.target.toLocaleString(),
+      s.actual.toLocaleString(),
+      `-${s.deficit.toLocaleString()} ${s.unit}`,
+      `${s.achievement}%`,
+    ]);
+
+    const shortfallOptions = {
+      startY: lastY + 5,
+      head: [['Period', 'Metric / Plan', 'Target', 'Actual', 'Shortfall', 'Achievement']],
+      body: shortfallRows,
+      theme: 'grid' as const,
+      headStyles: {
+        fillColor: [217, 119, 6] as [number, number, number],
+        textColor: [255, 255, 255] as [number, number, number],
+      },
+    };
+
+    if (typeof (doc as any).autoTable === 'function') {
+      (doc as any).autoTable(shortfallOptions);
+    } else {
+      autoTable(doc, shortfallOptions);
+    }
+
+    doc.save(`Raitu_Branch_BSC_Audit_${new Date().getFullYear()}.pdf`);
   };
 
   const exportEmployeePDF = (employee: Employee) => {
@@ -104,17 +423,17 @@ const ReportsPage: React.FC = () => {
 
       doc.setFontSize(18);
       doc.setTextColor(2, 132, 199);
-      doc.text('Performance Scorecard', 14, 22);
+      doc.text('Balanced Scorecard Performance Audit', 14, 22);
 
       doc.setFontSize(11);
       doc.setTextColor(71, 85, 105);
       doc.text(`Employee: ${employee.name}`, 14, 32);
-      doc.text(`Role: ${employee.role}`, 14, 38);
-      doc.text(`Branch: ${branchName}`, 14, 44);
+      doc.text(`Position Title: ${employee.positionTitle || employee.role}`, 14, 38);
+      doc.text(`Branch: ${branchName} (${branchCode})`, 14, 44);
 
       doc.setFontSize(14);
       doc.setTextColor(totalScore >= 80 ? 16 : 217, totalScore >= 80 ? 185 : 119, totalScore >= 80 ? 129 : 6);
-      doc.text(`Total Score: ${totalScore.toFixed(2)}%`, 140, 32);
+      doc.text(`Overall BSC Score: ${totalScore.toFixed(2)}%`, 130, 32);
 
       const tableData = employeeKpis.map(kpi => [
         kpi.objective?.category || 'General',
@@ -128,7 +447,7 @@ const ReportsPage: React.FC = () => {
 
       const options = {
         startY: 52,
-        head: [['Perspective', 'KPI', 'Weight', 'Target', 'Actual', 'Achievement', 'Score']],
+        head: [['Perspective', 'KPI Name', 'Weight', 'Target', 'Actual', 'Achievement', 'Score']],
         body: tableData,
         theme: 'grid' as const,
         headStyles: {
@@ -145,7 +464,7 @@ const ReportsPage: React.FC = () => {
 
       doc.save(`Scorecard_${employee.name.replace(/\s+/g, '_')}.pdf`);
     } catch (err) {
-      console.error('Failed to export PDF:', err);
+      console.error(err);
     } finally {
       setExportingId(null);
     }
@@ -154,108 +473,479 @@ const ReportsPage: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-xl font-semibold text-slate-600">Loading Reports...</div>
+        <div className="text-xl font-semibold text-slate-600">Loading Comprehensive Reports...</div>
       </div>
     );
   }
 
-  const branchEmployees = getBranchEmployees();
-
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl md:text-3xl font-bold text-slate-800">Reports & Exports</h2>
-        <p className="text-sm text-slate-500 mt-1">Generate Balanced Scorecard audit reports and individual performance documents</p>
+      {/* Top Header & Export Action Bar */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div className="flex items-center space-x-2">
+            <span className="px-2.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800 rounded-full border border-sky-200">
+              BSC Audit & Reports
+            </span>
+            <span className="text-xs text-slate-500 font-medium">
+              {branchName} ({branchCode}) • FY {activeBranch?.fiscalYear || fiscalYear}
+            </span>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mt-1">
+            Performance Reports & Backlog Analytics
+          </h1>
+          <p className="text-sm text-slate-500">
+            Comprehensive variance tracking across quarterly and monthly periods, June baseline deposit increments, and staff scorecards.
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-2.5 flex-wrap">
+          <button
+            onClick={exportToExcelFull}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition flex items-center space-x-1.5"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>Export Excel (.xlsx)</span>
+          </button>
+          <button
+            onClick={exportExecutivePDF}
+            className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-semibold shadow-xs transition flex items-center space-x-1.5"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <span>Export Branch PDF</span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+      {/* June Closing Deposit Baseline & Increment Analysis Card */}
+      <Card className="border-sky-200 bg-gradient-to-br from-white via-sky-50/20 to-sky-100/30">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-sky-100">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-sky-600 text-white rounded-xl shadow-sm">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-800">Branch Summary (Excel)</h3>
-              <p className="text-xs text-slate-500">Spreadsheet with full employee metrics</p>
-            </div>
-          </div>
-          <p className="text-sm text-slate-600 mb-5">
-            Download comprehensive spreadsheet listing all employees, roles, KPI counts, and overall scores for {branchName}.
-          </p>
-          <button
-            onClick={exportToCSV}
-            className="w-full bg-emerald-600 text-white px-4 py-2.5 rounded-xl hover:bg-emerald-700 transition font-medium text-sm flex items-center justify-center gap-2 shadow-sm"
-          >
-            <span>Download Excel Sheet (.xlsx)</span>
-          </button>
-        </Card>
-
-        <Card>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 bg-sky-100 text-sky-700 rounded-xl">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-800">Branch Report (PDF)</h3>
-              <p className="text-xs text-slate-500">Printable overview scorecard</p>
-            </div>
-          </div>
-          <p className="text-sm text-slate-600 mb-5">
-            Generate official executive summary report in PDF format suitable for branch submission or printing.
-          </p>
-          <button
-            onClick={exportBranchSummaryPDF}
-            className="w-full bg-sky-600 text-white px-4 py-2.5 rounded-xl hover:bg-sky-700 transition font-medium text-sm flex items-center justify-center gap-2 shadow-sm"
-          >
-            <span>Generate Branch PDF Summary</span>
-          </button>
-        </Card>
-      </div>
-
-      <Card>
-        <h3 className="text-lg font-bold text-slate-800 mb-1">Individual Employee Scorecards</h3>
-        <p className="text-xs text-slate-500 mb-4">Export official scorecard PDFs for review meetings and records</p>
-        <div className="space-y-2.5">
-          {branchEmployees.map(employee => {
-            const employeeKpis = kpis.filter(k => k.employeeId === employee.id);
-            const total = employeeKpis.reduce((acc, k) => {
-              const obj = annualPlan.find(p => p.id === k.objectiveId);
-              return acc + (obj ? calculateKpiMetrics(k, obj).score : 0);
-            }, 0);
-
-            return (
-              <div
-                key={employee.id}
-                className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 transition"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-slate-800 text-sm">{employee.name}</p>
-                    <span className="text-xs text-slate-400">({employee.role})</span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {employeeKpis.length} KPIs assigned • Overall: <span className="font-bold text-slate-700">{total.toFixed(1)}%</span>
-                  </p>
-                </div>
-                <button
-                  onClick={() => exportEmployeePDF(employee)}
-                  disabled={exportingId === employee.id}
-                  className="bg-white border border-slate-300 hover:border-red-400 hover:bg-red-50 text-slate-700 hover:text-red-700 px-3.5 py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-xs font-medium self-start sm:self-center shadow-sm disabled:opacity-50"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  <span>{exportingId === employee.id ? 'Generating...' : 'Export PDF'}</span>
-                </button>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-lg font-bold text-slate-900">
+                  End of Previous Year (June) Closing Balance & Deposit Increment
+                </h3>
+                <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${
+                  depositMetrics.isUnderJuneBalance ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {depositMetrics.isUnderJuneBalance ? 'Under June Baseline (Deficit)' : 'Above June Baseline (Net Expansion)'}
+                </span>
               </div>
-            );
-          })}
+              <p className="text-xs text-slate-500 mt-0.5">
+                Benchmark against audited June 30 closing balance to evaluate true net branch growth and annual increment targets.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-3.5 bg-white rounded-xl border border-slate-200">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase">
+              June Audited Baseline
+            </span>
+            <div className="text-xl font-bold text-slate-900 font-mono mt-1">
+              {(depositMetrics.juneBaseline / 1000000).toFixed(2)}M ETB
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Starting balance at fiscal year open</p>
+          </div>
+
+          <div className="p-3.5 bg-white rounded-xl border border-slate-200">
+            <span className="text-[11px] font-semibold text-sky-700 uppercase">
+              Target Annual Increment
+            </span>
+            <div className="text-xl font-bold text-sky-700 font-mono mt-1">
+              +{(depositMetrics.annualTargetIncrement / 1000000).toFixed(2)}M ETB
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Planned net mobilization growth</p>
+          </div>
+
+          <div className="p-3.5 bg-white rounded-xl border border-slate-200">
+            <span className="text-[11px] font-semibold text-emerald-700 uppercase">
+              Actual Net Mobilization
+            </span>
+            <div className="text-xl font-bold text-emerald-700 font-mono mt-1">
+              +{(depositMetrics.actualNetIncrement / 1000000).toFixed(2)}M ETB
+            </div>
+            <p className="text-[10px] text-emerald-600 mt-1">
+              {depositMetrics.incrementAchievement}% of target increment mobilized
+            </p>
+          </div>
+
+          <div className="p-3.5 bg-white rounded-xl border border-slate-200">
+            <span className="text-[11px] font-semibold text-slate-700 uppercase">
+              Current Total Closing Balance
+            </span>
+            <div className="text-xl font-bold text-slate-900 font-mono mt-1">
+              {(depositMetrics.currentDepositBalance / 1000000).toFixed(2)}M ETB
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Baseline + Net mobilized actual
+            </p>
+          </div>
+        </div>
+
+        {/* Quarterly Increment Table */}
+        <div className="mt-4 pt-4 border-t border-sky-100">
+          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-2">
+            Quarterly Deposit Increment Progression Over June Baseline
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {(['q1', 'q2', 'q3', 'q4'] as const).map(q => {
+              const qData = depositMetrics.quarterlyIncrements[q];
+              const isAhead = qData.variance >= 0;
+              return (
+                <div key={q} className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold text-slate-800">{q.toUpperCase()}</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${isAhead ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {qData.achievement}%
+                    </span>
+                  </div>
+                  <div className="text-slate-600">Target: <strong className="font-mono">{(qData.target / 1000000).toFixed(2)}M</strong></div>
+                  <div className="text-slate-600">Actual: <strong className="font-mono">{(qData.actual / 1000000).toFixed(2)}M</strong></div>
+                  <div className={`mt-1 font-semibold ${isAhead ? 'text-emerald-700' : 'text-red-600'}`}>
+                    Var: {isAhead ? '+' : ''}{(qData.variance / 1000000).toFixed(2)}M ETB
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </Card>
+
+      {/* Navigation Tabs */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 pb-2 overflow-x-auto">
+        <button
+          onClick={() => setActiveReportTab('backlog')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+            activeReportTab === 'backlog'
+              ? 'bg-sky-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Backlog & Period Shortfall Summary ({filteredShortfalls.length})
+        </button>
+        <button
+          onClick={() => setActiveReportTab('kpis')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+            activeReportTab === 'kpis'
+              ? 'bg-sky-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Detailed KPI Analytical Performance ({detailedKpisList.length})
+        </button>
+        <button
+          onClick={() => setActiveReportTab('scorecards')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+            activeReportTab === 'scorecards'
+              ? 'bg-sky-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Staff Performance Scorecards ({branchEmployees.length})
+        </button>
+      </div>
+
+      {/* TAB 1: BACKLOG & PERIOD SHORTFALL SUMMARY */}
+      {activeReportTab === 'backlog' && (
+        <div className="space-y-4">
+          {/* Filter Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200 text-xs">
+            <div className="flex items-center space-x-2">
+              <span className="font-semibold text-slate-500 uppercase">Period Breakdown:</span>
+              <button
+                onClick={() => setPeriodTab('all')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition ${
+                  periodTab === 'all' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                All Periods
+              </button>
+              <button
+                onClick={() => setPeriodTab('quarterly')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition ${
+                  periodTab === 'quarterly' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Quarterly (Q1-Q4)
+              </button>
+              <button
+                onClick={() => setPeriodTab('monthly')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition ${
+                  periodTab === 'monthly' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Monthly (Months 1-12)
+              </button>
+            </div>
+
+            {periodTab === 'quarterly' && (
+              <div className="flex items-center space-x-1.5">
+                <span className="text-slate-400">Quarter:</span>
+                {(['all', 'q1', 'q2', 'q3', 'q4'] as const).map(q => (
+                  <button
+                    key={q}
+                    onClick={() => setSelectedQuarter(q)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase ${
+                      selectedQuarter === q ? 'bg-sky-100 text-sky-800 border border-sky-300' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Metric Stats Banner */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 bg-white rounded-xl border border-slate-200 text-center">
+              <span className="text-[11px] text-slate-400 font-medium">Detected Shortfalls</span>
+              <p className="text-lg font-bold text-slate-800">{filteredShortfalls.length}</p>
+            </div>
+            <div className="p-3 bg-white rounded-xl border border-slate-200 text-center">
+              <span className="text-[11px] text-slate-400 font-medium">Critical Lags (&lt;60%)</span>
+              <p className="text-lg font-bold text-red-600">{shortfallStats.criticalCount}</p>
+            </div>
+            <div className="p-3 bg-white rounded-xl border border-slate-200 text-center">
+              <span className="text-[11px] text-slate-400 font-medium">Quarter Shortfall Incidents</span>
+              <p className="text-lg font-bold text-amber-600">{shortfallStats.quarterlyShortfalls}</p>
+            </div>
+            <div className="p-3 bg-white rounded-xl border border-slate-200 text-center">
+              <span className="text-[11px] text-slate-400 font-medium">Monthly Shortfalls</span>
+              <p className="text-lg font-bold text-slate-800">{shortfallStats.monthlyShortfalls}</p>
+            </div>
+          </div>
+
+          {/* Backlog Summary Table */}
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-600">
+                <thead className="bg-slate-50 text-[11px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-3">Period Occurred</th>
+                    <th className="py-3 px-3">Plan / Metric Title</th>
+                    <th className="py-3 px-3">Category</th>
+                    <th className="py-3 px-3 text-right">Target</th>
+                    <th className="py-3 px-3 text-right">Actual</th>
+                    <th className="py-3 px-3 text-right">Deficit / Backlog</th>
+                    <th className="py-3 px-3 text-center">Achieved</th>
+                    <th className="py-3 px-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredShortfalls.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        No performance variations or deficits found in this selection.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredShortfalls.map(item => (
+                      <tr key={item.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-2.5 px-3 font-semibold text-slate-800">
+                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[11px]">
+                            {item.periodLabel}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-medium text-slate-800">
+                          {item.planTitle}
+                          {item.employeeName && (
+                            <span className="block text-[10px] text-sky-600 font-normal">
+                              Assigned: {item.employeeName}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
+                            {item.category}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono">
+                          {item.target.toLocaleString()} {item.unit}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-slate-800">
+                          {item.actual.toLocaleString()} {item.unit}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-red-600">
+                          -{item.deficit.toLocaleString()} {item.unit}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="font-bold">{item.achievement}%</span>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            item.status === 'Critical Shortfall'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {item.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 2: DETAILED KPI ANALYTICAL PERFORMANCE */}
+      {activeReportTab === 'kpis' && (
+        <div className="space-y-4">
+          <Card>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-800">
+                  Comprehensive Balanced Scorecard KPI Matrix
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Detailed weights, achievements, weighted performance scores, and quarterly targets.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-600">
+                <thead className="bg-slate-50 text-[11px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-3">Perspective</th>
+                    <th className="py-3 px-3">Strategic Objective / KPI</th>
+                    <th className="py-3 px-2 text-center">Weight</th>
+                    <th className="py-3 px-3 text-right">Annual Target</th>
+                    <th className="py-3 px-3 text-right">Annual Actual</th>
+                    <th className="py-3 px-3 text-right">Variance</th>
+                    <th className="py-3 px-3 text-center">Achievement</th>
+                    <th className="py-3 px-3 text-right">Score Contribution</th>
+                    <th className="py-3 px-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {detailedKpisList.map(kpi => {
+                    const isPositive = kpi.variance >= 0;
+                    return (
+                      <tr key={kpi.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-2.5 px-3 font-semibold text-slate-700">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
+                            {kpi.category}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-slate-800">
+                          {kpi.name}
+                          <span className="block text-[10px] text-slate-400 font-normal">
+                            Category: {kpi.kpiCategory}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2 text-center font-bold text-slate-700">
+                          {kpi.weight}%
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono">
+                          {kpi.target.toLocaleString()} {kpi.unit}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                          {kpi.actual.toLocaleString()} {kpi.unit}
+                        </td>
+                        <td className={`py-2.5 px-3 text-right font-mono font-semibold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {isPositive ? '+' : ''}{kpi.variance.toLocaleString()} {kpi.unit}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-bold text-slate-800">
+                          {kpi.achievement}%
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-sky-700">
+                          {kpi.score.toFixed(2)}%
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            kpi.achievement >= 100
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : kpi.achievement >= 80
+                              ? 'bg-sky-100 text-sky-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {kpi.achievement >= 100 ? 'Outstanding' : kpi.achievement >= 80 ? 'On Track' : 'Needs Focus'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 3: STAFF PERFORMANCE SCORECARDS */}
+      {activeReportTab === 'scorecards' && (
+        <Card>
+          <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-800">Individual Staff Scorecards</h3>
+              <p className="text-xs text-slate-500">Official individual Balanced Scorecard documents for review meetings</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {branchEmployees.map(employee => {
+              const employeeKpis = kpis.filter(k => k.employeeId === employee.id);
+              const total = employeeKpis.reduce((acc, k) => {
+                const obj = annualPlan.find(p => p.id === k.objectiveId);
+                return acc + (obj ? calculateKpiMetrics(k, obj).score : 0);
+              }, 0);
+
+              return (
+                <div
+                  key={employee.id}
+                  className="p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 transition flex flex-col justify-between space-y-3"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm">{employee.name}</h4>
+                      <p className="text-xs text-sky-700 font-medium">
+                        {employee.positionTitle || employee.role}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Branch: {branchName} • PIN: {employee.pin}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-xs text-slate-400 block font-medium">Total Score</span>
+                      <span className={`text-lg font-bold font-mono ${total >= 80 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {total.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs text-slate-500">
+                    <span>{employeeKpis.length} KPIs assigned</span>
+                    <button
+                      onClick={() => exportEmployeePDF(employee)}
+                      disabled={exportingId === employee.id}
+                      className="px-3 py-1.5 bg-white border border-slate-300 hover:border-red-400 hover:bg-red-50 text-slate-700 hover:text-red-700 rounded-lg text-xs font-semibold shadow-xs transition flex items-center space-x-1"
+                    >
+                      <span>{exportingId === employee.id ? 'Generating...' : 'Export PDF'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
     </div>
   );
 };
