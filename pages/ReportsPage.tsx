@@ -25,7 +25,7 @@ export const ReportsPage: React.FC = () => {
   } = useData();
 
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<number | 'ALL'>('ALL');
-  const [activeReportTab, setActiveReportTab] = useState<'backlog' | 'kpis' | 'deposit' | 'scorecards'>('backlog');
+  const [activeReportTab, setActiveReportTab] = useState<'backlog' | 'kpis' | 'deposit' | 'scorecards' | 'periodicSummary' | 'myReport'>('periodicSummary');
   const [periodTab, setPeriodTab] = useState<'all' | 'quarterly' | 'monthly'>('all');
   const [selectedQuarter, setSelectedQuarter] = useState<'all' | 'q1' | 'q2' | 'q3' | 'q4'>('all');
   const [exportingId, setExportingId] = useState<number | null>(null);
@@ -626,6 +626,16 @@ export const ReportsPage: React.FC = () => {
       {/* Navigation Tabs */}
       <div className="flex items-center space-x-2 border-b border-slate-200 pb-2 overflow-x-auto">
         <button
+          onClick={() => setActiveReportTab('periodicSummary')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+            activeReportTab === 'periodicSummary'
+              ? 'bg-sky-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Periodic Branch & Employee Plans
+        </button>
+        <button
           onClick={() => setActiveReportTab('backlog')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
             activeReportTab === 'backlog'
@@ -655,7 +665,158 @@ export const ReportsPage: React.FC = () => {
         >
           Staff Performance Scorecards ({branchEmployees.length})
         </button>
+        {user?.role === Role.STAFF && (
+          <button
+            onClick={() => setActiveReportTab('myReport')}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+              activeReportTab === 'myReport'
+                ? 'bg-sky-600 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            My Comprehensive Performance Report
+          </button>
+        )}
       </div>
+
+      {/* TAB 0: PERIODIC BRANCH & EMPLOYEE PLANS */}
+      {activeReportTab === 'periodicSummary' && (
+        <div className="space-y-6">
+          <Card>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Branch Periodic Plans vs. Employee Plan Assignments
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Periodic comparison (Annual & Quarterly) showing actual performance, backlogs (deficits), progress achieved percentage, and employee contributions against total branch plans.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {periodicPlans.map(bPlan => {
+                const branchTarget = bPlan.annualTarget || 1;
+                const branchActual = bPlan.annualActual || 0;
+                const branchRate = Math.round((branchActual / branchTarget) * 100);
+                const assignedEmpsForPlan = employeePlans.filter(ep => ep.category === bPlan.category);
+
+                return (
+                  <div key={bPlan.id} className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+                    {/* Branch Master Plan Header */}
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pb-3 border-b border-slate-200">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-sky-100 text-sky-800">
+                            {bPlan.category}
+                          </span>
+                          <h4 className="text-sm font-bold text-slate-900">{bPlan.name}</h4>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Branch Master Target: <strong className="font-mono text-slate-800">{bPlan.annualTarget.toLocaleString()} {bPlan.metricUnit}</strong> | Actual Achieved: <strong className="font-mono text-emerald-700">{bPlan.annualActual.toLocaleString()} {bPlan.metricUnit}</strong>
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-[10px] text-slate-400 uppercase font-semibold">Branch Progress</p>
+                          <p className={`text-base font-black ${branchRate >= 90 ? 'text-emerald-600' : 'text-sky-600'}`}>{branchRate}%</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quarterly Breakdown for Branch Plan */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {(['q1', 'q2', 'q3', 'q4'] as const).map(q => {
+                        const qData = bPlan.quarterly[q];
+                        const qTarget = qData?.target || 0;
+                        const qActual = qData?.actual || 0;
+                        const qRate = qTarget > 0 ? Math.round((qActual / qTarget) * 100) : 0;
+                        const qDeficit = Math.max(0, qTarget - qActual);
+
+                        return (
+                          <div key={q} className="bg-white p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+                            <div className="flex justify-between items-center font-bold text-slate-800">
+                              <span>{q.toUpperCase()} Period</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${qRate >= 90 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                {qRate}%
+                              </span>
+                            </div>
+                            <div className="text-slate-600">Target: <span className="font-mono">{qTarget.toLocaleString()}</span></div>
+                            <div className="text-slate-600">Actual: <span className="font-mono text-emerald-600">{qActual.toLocaleString()}</span></div>
+                            {qDeficit > 0 && (
+                              <div className="text-red-600 font-semibold text-[11px]">Shortfall / Backlog: -{qDeficit.toLocaleString()}</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Assigned Employees Contributions Table */}
+                    <div className="mt-4 pt-3 border-t border-slate-200">
+                      <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">
+                        Assigned Employee Contributions to {bPlan.category} ({assignedEmpsForPlan.length} Staff Assigned)
+                      </h5>
+
+                      {assignedEmpsForPlan.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs bg-white rounded-xl border border-slate-200 overflow-hidden">
+                            <thead className="bg-slate-100 text-slate-600 uppercase font-semibold">
+                              <tr>
+                                <th className="p-2.5">Employee Name</th>
+                                <th className="p-2.5">Assigned Plan Title</th>
+                                <th className="p-2.5 text-right">Target</th>
+                                <th className="p-2.5 text-right">Actual</th>
+                                <th className="p-2.5 text-center">Progress %</th>
+                                <th className="p-2.5 text-center">Branch Share Contribution %</th>
+                                <th className="p-2.5 text-right">Backlog / Deficit</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                              {assignedEmpsForPlan.map(ep => {
+                                const emp = employees.find(e => e.id === ep.employeeId);
+                                const empTarget = ep.annualTarget || 1;
+                                const empActual = ep.annualActual || 0;
+                                const empRate = empTarget > 0 ? Math.round((empActual / empTarget) * 100) : 0;
+                                const contribShare = branchTarget > 0 ? Math.round((empTarget / branchTarget) * 100) : 0;
+                                const empDeficit = Math.max(0, empTarget - empActual);
+
+                                return (
+                                  <tr key={ep.id} className="hover:bg-slate-50 transition">
+                                    <td className="p-2.5 font-bold text-slate-900">{emp?.name || 'Staff'}</td>
+                                    <td className="p-2.5">{ep.title}</td>
+                                    <td className="p-2.5 text-right font-mono font-bold">{empTarget.toLocaleString()}</td>
+                                    <td className="p-2.5 text-right font-mono font-bold text-indigo-700">{empActual.toLocaleString()}</td>
+                                    <td className="p-2.5 text-center font-bold">
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] ${empRate >= 90 ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800'}`}>
+                                        {empRate}%
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 text-center font-bold text-sky-700 font-mono">
+                                      {contribShare}% of Branch Plan
+                                    </td>
+                                    <td className="p-2.5 text-right font-mono text-slate-600">
+                                      {empDeficit > 0 ? `-${empDeficit.toLocaleString()} ${ep.metricUnit}` : 'On Track'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic bg-white p-3 rounded-xl border border-slate-200 text-center">
+                          No specific employee plan assignments in this category yet.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* TAB 1: BACKLOG & PERIOD SHORTFALL SUMMARY */}
       {activeReportTab === 'backlog' && (
@@ -943,6 +1104,89 @@ export const ReportsPage: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        </Card>
+      )}
+
+      {/* TAB FOR MY COMPREHENSIVE PERFORMANCE REPORT */}
+      {activeReportTab === 'myReport' && user && (
+        <Card className="space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-200 gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-sky-100 text-sky-800">
+                  Staff Personal Report & Audit
+                </span>
+                <span className="text-xs text-slate-500 font-medium">
+                  Employee: {user.name} ({user.positionTitle || user.role})
+                </span>
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mt-1">
+                Detailed Overall Performance Report & Branch Plan Contribution
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Your assigned plans, actual progress, contribution percentage against your specific targets, and share compared to total branch targets.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                const empRecord = employees.find(e => e.id === user.id);
+                if (empRecord) exportEmployeePDF(empRecord);
+              }}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center space-x-1.5 cursor-pointer"
+            >
+              <span>📄 Export My Report PDF</span>
+            </button>
+          </div>
+
+          {/* Personal KPIs / Plans assigned */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Assigned Plans & Actual Progress vs Branch Targets
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {employeePlans.filter(ep => ep.employeeId === user.id).map(ep => {
+                const branchPlan = periodicPlans.find(bp => bp.category === ep.category);
+                const bTarget = branchPlan?.annualTarget || 1;
+                const myTarget = ep.annualTarget || 1;
+                const myActual = ep.annualActual || 0;
+                const myRate = myTarget > 0 ? Math.round((myActual / myTarget) * 100) : 0;
+                const branchShare = bTarget > 0 ? ((myTarget / bTarget) * 100).toFixed(1) : '0';
+
+                return (
+                  <div key={ep.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 uppercase">
+                        {ep.category}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${myRate >= 80 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                        {myRate}% Achieved
+                      </span>
+                    </div>
+
+                    <div>
+                      <h5 className="font-bold text-slate-900 text-sm">{ep.title}</h5>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Branch Target Share: <strong className="text-slate-800">{branchShare}%</strong> of total branch {ep.category} plan
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-white rounded-xl border border-slate-100 text-xs">
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-semibold uppercase">My Assigned Target</p>
+                        <p className="font-bold text-slate-800 font-mono mt-0.5">{myTarget.toLocaleString()} {ep.metricUnit}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-semibold uppercase">My Actual Progress</p>
+                        <p className="font-bold text-emerald-700 font-mono mt-0.5">{myActual.toLocaleString()} {ep.metricUnit}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </Card>
       )}

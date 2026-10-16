@@ -162,9 +162,24 @@ export const BranchAdminPage: React.FC = () => {
 
   if (user?.role !== Role.ADMIN) {
     return (
-      <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
-        <h2 className="text-xl font-bold text-slate-800">Administrator Access Required</h2>
-        <p className="text-sm text-slate-500 mt-2">Only HQ Administrators can configure branches and fiscal year cycles.</p>
+      <div className="max-w-2xl mx-auto py-12 px-4">
+        <div className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-sm">
+          <div className="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-slate-800">Administrator Access Required</h2>
+          <p className="text-sm text-slate-500 mt-2 mb-5">
+            Branch creation, fiscal year parameters, and organizational setup are strictly reserved for HQ Administrators.
+          </p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer"
+          >
+            Return to Dashboard
+          </button>
+        </div>
       </div>
     );
   }

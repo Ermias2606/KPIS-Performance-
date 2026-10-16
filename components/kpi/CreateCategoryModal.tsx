@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { PerspectiveCategory, KpiCategoryItem } from '../../types';
+import React, { useState, useContext } from 'react';
+import { PerspectiveCategory, KpiCategoryItem, Role } from '../../types';
 import { useData } from '../../context/DataContext';
+import { AuthContext } from '../../context/AuthContext';
 import { COLOR_OPTIONS } from './CategoryHelpers';
 
 interface CreateCategoryModalProps {
@@ -52,6 +53,8 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
   onClose,
   onCategoryCreated,
 }) => {
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === Role.ADMIN;
   const { addKpiCategory, kpiCategories } = useData();
 
   const [name, setName] = useState('');
@@ -76,6 +79,11 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!isAdmin) {
+      setError('Only Admin users can create new categories.');
+      return;
+    }
 
     const trimmedName = name.trim();
     if (!trimmedName) {

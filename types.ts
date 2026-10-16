@@ -178,3 +178,18 @@ export interface BacklogNotice {
   detectedAt: string;
   acknowledged?: boolean;
 }
+
+export interface PerformanceSubmission {
+  id: string | number;
+  employeeId: number;
+  employeeName: string;
+  targetId: number;
+  targetName: string;
+  category: string;
+  metricUnit: string;
+  previousActual: number;
+  proposedActual: number;
+  submittedAt: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  notes?: string;
+}

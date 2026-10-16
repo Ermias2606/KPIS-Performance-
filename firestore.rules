@@ -6,10 +6,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isVerified() {
-      return isAuthenticated() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
-    }
-
     function isBootstrappedAdmin() {
       return isAuthenticated() && request.auth.token.email == 'ermikeab@gmail.com';
     }
@@ -19,11 +15,24 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isBootstrappedAdmin() || (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == 'ADMIN');
+      return isBootstrappedAdmin() || (
+        isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (getUserData().role == 'ADMIN' || getUserData().role == 'Admin (HQ)')
+      );
     }
 
     function isManagerOrAdmin() {
-      return isAdmin() || (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == 'MANAGER');
+      return isAdmin() || (
+        isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (getUserData().role == 'MANAGER' || getUserData().role == 'Branch Manager')
+      );
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
     }
 
     // Test connection document for verifying Firestore client connectivity
@@ -40,46 +49,75 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Employees Directory
+    // Branches & Fiscal Year Setup (Creation, modification, and deletion restricted to Admin only)
+    match /branches/{branchId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Employees Directory (Creation, modification, and deletion restricted to Admin only)
     match /employees/{employeeId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
     }
 
-    // KPI Categories (System and Custom)
+    // KPI Categories (System and Custom - Creation, modification, and deletion restricted to Admin only)
     match /kpiCategories/{categoryId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
     }
 
-    // Annual Plan Objectives
+    // Annual Plan Objectives (Creation, modification, and deletion restricted to Admin only)
     match /annualPlanObjectives/{objectiveId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
     }
 
-    // Individual KPIs
+    // Individual Staff KPIs
     match /kpis/{kpiId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['actual', 'selfRating', 'managerRating'])
+      );
     }
 
-    // Periodic Plans (Annual/Quarterly/Monthly)
+    // Periodic Plans
     match /periodicPlans/{planId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['annualActual', 'quarterly', 'monthly'])
+      );
     }
 
     // Backlog Plans & Arrears
     match /backlogPlans/{backlogId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['backlogActual', 'status'])
+      );
     }
 
     // Employee Plan & Backlog Assignments
     match /employeePlans/{assignmentId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['annualActual', 'quarterly', 'monthly'])
+      );
+    }
+
+    // Performance Submissions (Employees can submit performance, Admin can approve/reject)
+    match /performanceSubmissions/{submissionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
     }
   }
 }

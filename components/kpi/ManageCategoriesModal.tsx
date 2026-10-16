@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { useData } from '../../context/DataContext';
+import { AuthContext } from '../../context/AuthContext';
+import { Role } from '../../types';
 import { getCategoryMeta } from './CategoryHelpers';
 import CreateCategoryModal from './CreateCategoryModal';
 import CreateKpiModal from './CreateKpiModal';
@@ -10,6 +12,8 @@ interface ManageCategoriesModalProps {
 }
 
 export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({ isOpen, onClose }) => {
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === Role.ADMIN;
   const { kpiCategories, periodicPlans, employeePlans, backlogPlans, deleteKpiCategory } = useData();
 
   const [showAddCat, setShowAddCat] = useState(false);
@@ -40,15 +44,21 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({ is
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowAddCat(true)}
-                className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span>+ New Category</span>
-              </button>
+              {isAdmin ? (
+                <button
+                  onClick={() => setShowAddCat(true)}
+                  className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>+ New Category</span>
+                </button>
+              ) : (
+                <span className="px-2.5 py-1 bg-white/10 rounded-xl text-xs text-slate-300 font-medium">
+                  Read-Only Mode (Admin Only)
+                </span>
+              )}
 
               <button
                 onClick={onClose}
@@ -106,7 +116,7 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({ is
                           </div>
                         </div>
 
-                        {!cat.isSystem && (
+                        {isAdmin && !cat.isSystem && (
                           confirmDeleteCatId === cat.id ? (
                             <div className="flex items-center gap-1">
                               <button
@@ -161,18 +171,22 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({ is
 
                     {/* Actions */}
                     <div className="pt-1 flex items-center justify-between">
-                      <button
-                        onClick={() => {
-                          setSelectedCatForKpi(cat.id);
-                          setShowAddKpi(true);
-                        }}
-                        className="text-xs font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span>+ Add KPI in this Category</span>
-                      </button>
+                      {isAdmin ? (
+                        <button
+                          onClick={() => {
+                            setSelectedCatForKpi(cat.id);
+                            setShowAddKpi(true);
+                          }}
+                          className="text-xs font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          <span>+ Add KPI in this Category</span>
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic">Admin role required to configure KPIs</span>
+                      )}
                     </div>
                   </div>
                 );

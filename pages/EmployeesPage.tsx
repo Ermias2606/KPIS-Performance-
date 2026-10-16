@@ -42,7 +42,8 @@ export const EmployeesPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [exportingId, setExportingId] = useState<number | null>(null);
 
-  const canManage = user?.role === Role.ADMIN || user?.role === Role.MANAGER;
+  const isAdmin = user?.role === Role.ADMIN;
+  const canManage = isAdmin; // Creation and modification of employee are only for Admin
 
   // Filter & Sort Employees
   const managedEmployees = useMemo(() => {
@@ -103,6 +104,7 @@ export const EmployeesPage: React.FC = () => {
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) return;
     if (!newEmployeeName.trim() || !newEmployeePin.trim()) return;
     setIsSubmitting(true);
     try {
@@ -130,7 +132,7 @@ export const EmployeesPage: React.FC = () => {
 
   const handleUpdateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingEmployee) return;
+    if (!isAdmin || !editingEmployee) return;
     setIsSubmitting(true);
     try {
       await updateEmployee(editingEmployee);
@@ -145,10 +147,12 @@ export const EmployeesPage: React.FC = () => {
   const [employeeToDelete, setEmployeeToDelete] = useState<{ id: number; name: string } | null>(null);
 
   const handleDelete = (id: number, name: string) => {
+    if (!isAdmin) return;
     setEmployeeToDelete({ id, name });
   };
 
   const confirmDeleteEmployee = async () => {
+    if (!isAdmin) return;
     if (employeeToDelete) {
       await deleteEmployee(employeeToDelete.id);
       setEmployeeToDelete(null);
@@ -242,7 +246,7 @@ export const EmployeesPage: React.FC = () => {
             </p>
           </div>
 
-          {canManage && (
+          {canManage ? (
             <button
               onClick={() => setShowAddModal(true)}
               className="bg-sky-600 text-white px-4 py-2 rounded-xl hover:bg-sky-700 transition font-medium text-xs flex items-center gap-1.5 shadow-sm"
@@ -252,6 +256,11 @@ export const EmployeesPage: React.FC = () => {
               </svg>
               <span>Add Employee</span>
             </button>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-xl text-xs text-slate-500 border border-slate-200">
+              <span className="w-2 h-2 rounded-full bg-slate-400" />
+              <span>Read-only Directory (Admin role required to add or modify staff)</span>
+            </div>
           )}
         </div>
 

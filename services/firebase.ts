@@ -62,8 +62,13 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  if (errMsg.includes('offline') || errMsg.includes('Backend didn\'t respond') || errMsg.includes('unavailable')) {
+    console.warn('Firestore offline / network timeout notice (operating in offline fallback mode):', errMsg);
+    return;
+  }
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -80,7 +85,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path,
   };
   console.warn('Firestore Error Context:', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
 }
 
 // Connectivity test

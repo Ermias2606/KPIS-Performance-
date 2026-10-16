@@ -171,16 +171,16 @@ const LoginPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleQuickSelect(adminUser.pin)}
-                className="flex items-center justify-between px-3.5 py-2.5 text-left rounded-xl border border-slate-200 hover:border-sky-400 hover:bg-sky-50 transition text-sm group"
+                className="flex items-center justify-between px-4 py-3 text-left rounded-xl border border-slate-200 hover:border-sky-400 hover:bg-sky-50 transition text-sm group cursor-pointer"
               >
                 <div>
-                  <span className="font-semibold text-slate-800 group-hover:text-sky-700">
+                  <span className="font-semibold text-slate-800 group-hover:text-sky-700 block">
                     {adminUser.name}
                   </span>
-                  <span className="text-xs text-sky-600 font-medium ml-2">({adminUser.role})</span>
+                  <span className="text-xs text-sky-600 font-medium">({adminUser.role})</span>
                 </div>
-                <span className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
-                  PIN: {adminUser.pin}
+                <span className="text-xs font-semibold text-sky-600 group-hover:underline">
+                  Sign In &rarr;
                 </span>
               </button>
             )}
@@ -189,16 +189,16 @@ const LoginPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleQuickSelect(ermiyasUser.pin)}
-                className="flex items-center justify-between px-3.5 py-2.5 text-left rounded-xl border border-slate-200 hover:border-sky-400 hover:bg-sky-50 transition text-sm group"
+                className="flex items-center justify-between px-4 py-3 text-left rounded-xl border border-slate-200 hover:border-sky-400 hover:bg-sky-50 transition text-sm group cursor-pointer"
               >
                 <div>
-                  <span className="font-semibold text-slate-800 group-hover:text-sky-700">
+                  <span className="font-semibold text-slate-800 group-hover:text-sky-700 block">
                     {ermiyasUser.name}
                   </span>
-                  <span className="text-xs text-sky-600 font-medium ml-2">({ermiyasUser.role})</span>
+                  <span className="text-xs text-sky-600 font-medium">({ermiyasUser.role})</span>
                 </div>
-                <span className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
-                  PIN: {ermiyasUser.pin}
+                <span className="text-xs font-semibold text-sky-600 group-hover:underline">
+                  Sign In &rarr;
                 </span>
               </button>
             )}

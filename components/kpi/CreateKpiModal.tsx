@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { PerspectiveCategory, KpiCategoryItem } from '../../types';
+import React, { useState, useMemo, useContext } from 'react';
+import { PerspectiveCategory, KpiCategoryItem, Role } from '../../types';
 import { useData } from '../../context/DataContext';
+import { AuthContext } from '../../context/AuthContext';
 import { getCategoryMeta } from './CategoryHelpers';
 import CreateCategoryModal from './CreateCategoryModal';
 
@@ -19,6 +20,8 @@ export const CreateKpiModal: React.FC<CreateKpiModalProps> = ({
   initialCategory,
   initialEmployeeId,
 }) => {
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === Role.ADMIN;
   const { kpiCategories, employees, createFullKpi } = useData();
 
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -81,6 +84,11 @@ export const CreateKpiModal: React.FC<CreateKpiModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!isAdmin) {
+      setError('Only Admin users can create new KPIs.');
+      return;
+    }
 
     if (!name.trim()) {
       setError('Please enter a KPI name.');

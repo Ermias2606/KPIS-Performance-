@@ -45,6 +45,16 @@ const SidebarIcon: React.FC<{ path: string }> = ({ path }) => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
       </svg>
     ),
+    'performance input': (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    ),
+    'approvals': (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
     'landing portal': (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
@@ -111,6 +121,8 @@ const Sidebar: React.FC<SidebarProps> = ({ user, isOpen, setIsOpen }) => {
           {(isAdmin || isManager) && <NavItem to="/employees" label="Employees" />}
           {(isStaff || isManager) && <NavItem to={`/employees/${user.id}`} label="My Scorecard" />}
           <NavItem to="/plan" label="Plan" />
+          <NavItem to="/performance-input" label="Performance Input" />
+          {isAdmin && <NavItem to="/admin/approvals" label="Approvals" />}
           {(isAdmin || isManager) && <NavItem to="/reports" label="Reports" />}
           {isAdmin && <NavItem to="/admin/branch-setup" label="Branch & Fiscal Setup" />}
           <NavItem to="/network" label="LAN & Devices" />

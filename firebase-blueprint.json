@@ -132,12 +132,52 @@
         "isBacklog": { "type": "boolean", "description": "Whether this is a backlog recovery assignment" }
       },
       "required": ["id", "employeeId", "category", "kpiName", "annualTarget", "annualActual"]
+    },
+    "Branch": {
+      "title": "Branch",
+      "description": "Branch profile, code, and fiscal year configurations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Branch ID" },
+        "name": { "type": "string", "description": "Branch Name" },
+        "code": { "type": "string", "description": "Branch Code" },
+        "district": { "type": "string", "description": "District" },
+        "fiscalYear": { "type": "string", "description": "Fiscal Year" },
+        "openingDate": { "type": "string", "description": "Opening Date" },
+        "juneClosingDepositBalance": { "type": "number", "description": "June closing deposit baseline in ETB" },
+        "isActive": { "type": "boolean", "description": "Active status" }
+      },
+      "required": ["id", "name"]
+    },
+    "PerformanceSubmission": {
+      "title": "PerformanceSubmission",
+      "description": "Employee submitted actual performance awaiting admin approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Submission ID" },
+        "employeeId": { "type": "number", "description": "Employee ID" },
+        "employeeName": { "type": "string", "description": "Employee Name" },
+        "targetId": { "type": "number", "description": "Target ID" },
+        "targetName": { "type": "string", "description": "Target Name" },
+        "category": { "type": "string", "description": "Category" },
+        "metricUnit": { "type": "string", "description": "Metric unit" },
+        "previousActual": { "type": "number", "description": "Previous actual" },
+        "proposedActual": { "type": "number", "description": "Proposed actual" },
+        "submittedAt": { "type": "string", "description": "Submission timestamp" },
+        "status": { "type": "string", "description": "Status: Pending, Approved, Rejected" },
+        "notes": { "type": "string", "description": "Notes" }
+      },
+      "required": ["id", "employeeId", "targetId", "proposedActual", "status"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "User profiles authenticated via Firebase Auth"
+    },
+    "/branches/{branchId}": {
+      "schema": { "$ref": "#/entities/Branch" },
+      "description": "Branch profile and fiscal year configurations"
     },
     "/employees/{employeeId}": {
       "schema": { "$ref": "#/entities/Employee" },
@@ -166,6 +206,10 @@
     "/employeePlans/{assignmentId}": {
       "schema": { "$ref": "#/entities/EmployeePlanAssignment" },
       "description": "Employee monthly plan and backlog work assignments"
+    },
+    "/performanceSubmissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/PerformanceSubmission" },
+      "description": "Actual performance submissions awaiting admin review"
     }
   }
 }

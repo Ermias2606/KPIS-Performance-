@@ -21,7 +21,7 @@ import {
 } from '../constants';
 
 const DB_NAME = 'RaituBSC-DB';
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 const initDB = async () => {
   const db = await openDB(DB_NAME, DB_VERSION, {
@@ -51,6 +51,9 @@ const initDB = async () => {
       }
       if (!db.objectStoreNames.contains('kpiCategories')) {
         db.createObjectStore('kpiCategories', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('performanceSubmissions')) {
+        db.createObjectStore('performanceSubmissions', { keyPath: 'id', autoIncrement: true });
       }
     },
   });

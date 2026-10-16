@@ -8,6 +8,8 @@ import EmployeesPage from './pages/EmployeesPage';
 import EmployeeDetailPage from './pages/EmployeeDetailPage';
 import AnnualPlanPage from './pages/AnnualPlanPage';
 import ReportsPage from './pages/ReportsPage';
+import PerformanceInputPage from './pages/PerformanceInputPage';
+import ApprovalWorkflowPage from './pages/ApprovalWorkflowPage';
 import BranchAdminPage from './pages/BranchAdminPage';
 import BranchNetworkPage from './pages/BranchNetworkPage';
 import Header from './components/layout/Header';
@@ -80,7 +82,15 @@ const Main: React.FC = () => {
             <Route path="/employees/:id" element={<EmployeeDetailPage />} />
             <Route path="/plan" element={<AnnualPlanPage />} />
             <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/admin/branch-setup" element={<BranchAdminPage />} />
+            <Route path="/performance-input" element={<PerformanceInputPage />} />
+            <Route
+              path="/admin/branch-setup"
+              element={user.role === Role.ADMIN ? <BranchAdminPage /> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/admin/approvals"
+              element={user.role === Role.ADMIN ? <ApprovalWorkflowPage /> : <Navigate to="/dashboard" replace />}
+            />
             <Route path="/network" element={<BranchNetworkPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

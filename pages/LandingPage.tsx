@@ -87,12 +87,12 @@ export const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-sky-500 selection:text-white">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50/70 to-amber-100/40 text-slate-900 flex flex-col font-sans selection:bg-orange-500 selection:text-white">
       {/* Top Utility Announcement Bar */}
       <div className="bg-slate-900 text-slate-300 text-xs py-2 px-4 border-b border-slate-800">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="inline-block w-2 h-2 rounded-full bg-orange-400" />
             <span className="font-medium text-white">Raitu Branch Performance Operating System</span>
             <span className="text-slate-500">|</span>
             <span className="text-slate-400">Offline-First PWA • Firestore Cloud Sync • Auto-Backlog Engine</span>
@@ -108,15 +108,15 @@ export const LandingPage: React.FC = () => {
       </div>
 
       {/* Navigation Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
+      <header className="bg-white/80 backdrop-blur-md border-b border-orange-100 sticky top-0 z-40 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-sky-100">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-600 to-amber-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-orange-200">
               R
             </div>
             <div>
               <span className="text-base font-bold text-slate-900 block leading-tight">Raitu Branch</span>
-              <span className="text-xs text-slate-500 font-medium">Performance Tracker & BSC Portal</span>
+              <span className="text-xs text-orange-700 font-medium">Performance Tracker & BSC Portal</span>
             </div>
           </div>
 
@@ -128,7 +128,7 @@ export const LandingPage: React.FC = () => {
                 </span>
                 <button
                   onClick={() => navigate('/dashboard')}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-semibold shadow-xs transition"
+                  className="px-4 py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-orange-500/20 transition cursor-pointer"
                 >
                   Enter Dashboard &rarr;
                 </button>

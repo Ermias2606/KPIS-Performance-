@@ -429,6 +429,7 @@ const AnnualPlanPage: React.FC = () => {
 
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) return;
     setIsSubmitting(true);
     try {
       if (editingPlan) {
@@ -527,6 +528,7 @@ const AnnualPlanPage: React.FC = () => {
 
   const handleConfirmBacklogAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) return;
     setIsSubmitting(true);
     try {
       if (assignBacklogMode === 'existing') {
@@ -568,6 +570,7 @@ const AnnualPlanPage: React.FC = () => {
   const handleSaveBacklog = handleConfirmBacklogAssignment;
 
   const handleUnassignBacklog = async (backlogId: number) => {
+    if (!isAdmin) return;
     await unassignBacklogPlan(backlogId);
   };
 
@@ -599,6 +602,7 @@ const AnnualPlanPage: React.FC = () => {
 
   const handleSaveEmployeeAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) return;
     if (!assignTitle.trim()) return;
     setIsSubmitting(true);
     try {
@@ -1081,15 +1085,7 @@ const AnnualPlanPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
-                    <button
-                      onClick={() => handleOpenPerfInput('periodic', plan.id)}
-                      className="text-xs font-bold text-emerald-700 hover:text-emerald-800 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>Input Actual</span>
-                      <span>&rarr;</span>
-                    </button>
-
+                  <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-end">
                     {isAdmin && (
                       <div className="flex gap-2">
                         <button
@@ -1121,14 +1117,8 @@ const AnnualPlanPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-4 pb-3 border-b border-slate-100">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">2026 Quarterly Performance Breakdown</h3>
-                <p className="text-xs text-slate-500">Click on any quarter actual cell to edit directly or use the Action button</p>
+                <p className="text-xs text-slate-500">Click on any quarter actual cell to edit directly</p>
               </div>
-              <button
-                onClick={() => handleOpenPerfInput('periodic')}
-                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-1.5 rounded-lg transition shadow-xs cursor-pointer flex items-center gap-1"
-              >
-                <span>Input Quarter Performance</span>
-              </button>
             </div>
 
             <div className="overflow-x-auto">
@@ -1493,6 +1483,19 @@ const AnnualPlanPage: React.FC = () => {
                           <p className="text-base font-bold text-indigo-700 mt-0.5">{ep.annualActual.toLocaleString()}</p>
                         </div>
                       </div>
+
+                      {/* Branch Plan Contribution Percentage */}
+                      {(() => {
+                        const matchingBranchPlan = periodicPlans.find(p => p.category === ep.category);
+                        const branchTarget = matchingBranchPlan ? matchingBranchPlan.annualTarget : 1;
+                        const branchContribPct = branchTarget > 0 ? Math.round((ep.annualTarget / branchTarget) * 100) : 0;
+                        return (
+                          <div className="mb-3 text-[11px] font-bold text-sky-700 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-200 flex items-center justify-between">
+                            <span>Branch Plan Share:</span>
+                            <span className="font-mono font-black">{branchContribPct}% of Branch {ep.category} Plan</span>
+                          </div>
+                        );
+                      })()}
 
                       {/* Progress Bar */}
                       <div className="space-y-1">
