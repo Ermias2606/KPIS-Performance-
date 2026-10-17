@@ -163,11 +163,11 @@ export async function exportBranchDatabaseSnapshot(): Promise<string> {
   ]);
 
   const payload = {
-    app: 'Raitu Branch Performance Tracker',
+    app: 'Performance Tracker',
     version: '1.0.0',
     exportedAt: new Date().toISOString(),
     branchId: (branches as any[])[0]?.id || 1,
-    branchName: (branches as any[])[0]?.name || 'Raitu Branch',
+    branchName: (branches as any[])[0]?.name || 'Main Operations Branch',
     data: {
       employees,
       branches,

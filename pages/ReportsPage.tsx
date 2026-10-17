@@ -10,6 +10,7 @@ import { Employee, Role, PerspectiveCategory, PeriodicPlanItem, EmployeePlanAssi
 export const ReportsPage: React.FC = () => {
   const { user } = useContext(AuthContext);
   const {
+    activeOrganization,
     employees,
     branches,
     activeBranchId,
@@ -34,8 +35,8 @@ export const ReportsPage: React.FC = () => {
     return branches.find(b => b.id === (user?.branchId || activeBranchId)) || branches[0];
   }, [branches, user, activeBranchId]);
 
-  const branchName = activeBranch?.name || 'Raitu Branch';
-  const branchCode = activeBranch?.code || 'RTU-01';
+  const branchName = activeBranch?.name || 'Main Operations Branch';
+  const branchCode = activeBranch?.code || 'MOB-01';
 
   const depositMetrics = useMemo(() => {
     return getDepositMobilizationMetrics(activeBranch?.id);
@@ -306,7 +307,7 @@ export const ReportsPage: React.FC = () => {
     const ws3 = XLSX.utils.json_to_sheet(depositSheetData);
     XLSX.utils.book_append_sheet(wb, ws3, 'Deposit June Baseline');
 
-    XLSX.writeFile(wb, `Raitu_Branch_Comprehensive_BSC_Audit_${new Date().getFullYear()}.xlsx`);
+    XLSX.writeFile(wb, `Performance_Tracker_Comprehensive_BSC_Audit_${new Date().getFullYear()}.xlsx`);
   };
 
   // Export Executive PDF Summary
@@ -314,12 +315,12 @@ export const ReportsPage: React.FC = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
     doc.setTextColor(2, 132, 199);
-    doc.text('Raitu Branch Balanced Scorecard & Audit Report', 14, 20);
+    doc.text(`${activeOrganization?.name || 'Performance Tracker'} — Balanced Scorecard & Audit Report`, 14, 20);
 
     doc.setFontSize(10);
     doc.setTextColor(100, 116, 139);
     doc.text(
-      `Branch: ${branchName} (${branchCode}) | Fiscal Year: ${activeBranch?.fiscalYear || fiscalYear} | Date: ${new Date().toLocaleDateString()}`,
+      `Sector: ${activeOrganization?.sector || 'Enterprise'} | Branch: ${branchName} (${branchCode}) | Fiscal Year: ${activeBranch?.fiscalYear || fiscalYear} | Date: ${new Date().toLocaleDateString()}`,
       14,
       27
     );
@@ -407,7 +408,7 @@ export const ReportsPage: React.FC = () => {
       autoTable(doc, shortfallOptions);
     }
 
-    doc.save(`Raitu_Branch_BSC_Audit_${new Date().getFullYear()}.pdf`);
+    doc.save(`Performance_Tracker_BSC_Audit_${new Date().getFullYear()}.pdf`);
   };
 
   const exportEmployeePDF = (employee: Employee) => {

@@ -21,15 +21,20 @@ import { Link } from 'react-router-dom';
 import { useData, calculateKpiMetrics } from '../context/DataContext';
 import { AuthContext } from '../context/AuthContext';
 import Card from '../components/ui/Card';
-import { Role, PerspectiveCategory, BacklogPlanItem, EmployeePlanAssignment } from '../types';
+import KpiProgressBar from '../components/ui/KpiProgressBar';
+import { Role, isAdminRole, PerspectiveCategory, BacklogPlanItem, EmployeePlanAssignment } from '../types';
 import { getCategoryMeta } from '../components/kpi/CategoryHelpers';
 import CreateKpiModal from '../components/kpi/CreateKpiModal';
 import CreateCategoryModal from '../components/kpi/CreateCategoryModal';
 import ManageCategoriesModal from '../components/kpi/ManageCategoriesModal';
 
+export { KpiProgressBar };
+
 export const DashboardPage: React.FC = () => {
   const { user } = useContext(AuthContext);
   const {
+    organizations,
+    activeOrganization,
     employees,
     kpis,
     annualPlan,
@@ -39,11 +44,22 @@ export const DashboardPage: React.FC = () => {
     kpiCategories,
     branches,
     loading,
+    updateKpi,
     recordActualPerformance,
     recordEmployeePerformance,
     getDepositMobilizationMetrics,
     getCalculatedBacklogNotices,
+    latestKpiEngineResult,
+    kpiEngineSchedule,
+    runKpiEngineAudit,
   } = useData();
+  const [isRecalculatingEngine, setIsRecalculatingEngine] = useState(false);
+
+  const handleTriggerEngineNow = async () => {
+    setIsRecalculatingEngine(true);
+    await runKpiEngineAudit(true);
+    setIsRecalculatingEngine(false);
+  };
 
   // Modals
   const [showCreateKpiModal, setShowCreateKpiModal] = useState(false);
@@ -56,7 +72,7 @@ export const DashboardPage: React.FC = () => {
 
   // Quick performance log modal state
   const [quickLogItem, setQuickLogItem] = useState<{
-    type: 'plan' | 'employeePlan' | 'backlog';
+    type: 'plan' | 'employeePlan' | 'backlog' | 'kpi';
     id: number;
     title: string;
     unit: string;
@@ -69,20 +85,20 @@ export const DashboardPage: React.FC = () => {
   // Determine current user context
   const branchEmployees = useMemo(() => {
     if (!user) return [];
-    if (user.role === Role.ADMIN) return employees.filter(e => e.role !== Role.ADMIN);
-    return employees.filter(e => e.branchId === user.branchId && e.role !== Role.ADMIN);
+    if (isAdminRole(user.role)) return employees.filter(e => !isAdminRole(e.role));
+    return employees.filter(e => e.branchId === user.branchId && !isAdminRole(e.role));
   }, [user, employees]);
 
-  const branchName = branches.find(b => b.id === user?.branchId)?.name || 'Raitu Branch';
-  const isAdmin = user?.role === Role.ADMIN;
+  const branchName = branches.find(b => b.id === user?.branchId)?.name || 'Main Operations Branch';
+  const isAdmin = isAdminRole(user?.role);
   const isManager = user?.role === Role.MANAGER;
   const isManagerOrAdmin = isAdmin || isManager;
-  const isStaff = user?.role === Role.STAFF;
+  const isStaff = user?.role === Role.STAFF || user?.role === Role.OFFICER;
 
   // Ermiyas / Staff specific metrics
   const targetStaff = useMemo(() => {
     if (isStaff && user) return user;
-    return employees.find(e => e.role === Role.STAFF) || employees[0];
+    return employees.find(e => e.role === Role.OFFICER || e.role === Role.STAFF) || employees[0];
   }, [isStaff, user, employees]);
 
   const userKpis = useMemo(() => {
@@ -292,6 +308,14 @@ export const DashboardPage: React.FC = () => {
           periodType: 'backlog',
           newActual: Number(quickLogValue),
         });
+      } else if (quickLogItem.type === 'kpi') {
+        const targetKpi = kpis.find(k => k.id === quickLogItem.id);
+        if (targetKpi) {
+          await updateKpi({
+            ...targetKpi,
+            actual: Number(quickLogValue),
+          });
+        }
       }
       setQuickLogItem(null);
       setQuickLogValue('');
@@ -316,25 +340,39 @@ export const DashboardPage: React.FC = () => {
       {/* TOP HERO HEADER & EXECUTIVE ACTIONS */}
       {/* ============================================================== */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h2 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">
-              Welcome, {user?.name}!
-            </h2>
-            <span className="px-3 py-1 bg-sky-100 text-sky-800 text-xs font-bold rounded-full">
-              {branchName}
-            </span>
-            <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-md ${
-              isAdmin ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'
-            }`}>
-              {user?.role}
-            </span>
+        <div className="flex items-start sm:items-center gap-3.5">
+          {activeOrganization?.logoUrl && (
+            <img
+              src={activeOrganization.logoUrl}
+              alt={activeOrganization.name}
+              className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-xs shrink-0"
+            />
+          )}
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">
+                Welcome, {user?.name}!
+              </h2>
+              <span className="text-xs font-bold text-orange-700">
+                {activeOrganization?.name || 'Performance Tracker'} ({activeOrganization?.sector || 'Enterprise'})
+              </span>
+              <span aria-hidden="true" className="text-slate-300">·</span>
+              <span className="text-xs font-bold text-sky-700">
+                {branchName}
+              </span>
+              <span aria-hidden="true" className="text-slate-300">·</span>
+              <span className={`text-xs font-semibold ${
+                isAdmin ? 'text-purple-700' : 'text-emerald-700'
+              }`}>
+                {user?.role}
+              </span>
+            </div>
+            <p className="text-sm text-slate-500 mt-1">
+              {isManagerOrAdmin
+                ? 'Organization & Branch Executive Cockpit • Real-time Balanced Scorecard (BSC), KPI Categories & Backlog Recovery'
+                : 'Personal Balanced Scorecard Performance, Assigned Periodic Targets & Recovery Tasks'}
+            </p>
           </div>
-          <p className="text-sm text-slate-500 mt-1">
-            {isManagerOrAdmin
-              ? 'Branch Strategic Executive Cockpit • Real-time Balanced Scorecard (BSC), KPI Categories & Backlog Recovery'
-              : 'Personal Balanced Scorecard Performance, Assigned Periodic Targets & Arrears Recovery Tasks'}
-          </p>
         </div>
 
         {/* Action Controls */}
@@ -397,6 +435,92 @@ export const DashboardPage: React.FC = () => {
             <span>Strategic Plan</span>
             <span>&rarr;</span>
           </Link>
+        </div>
+      </div>
+
+      {/* Live Server-Side Automated KPI & Backlog Calculation Engine Strip */}
+      <div className="bg-slate-900 text-white px-5 py-4 rounded-2xl shadow-sm border border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shrink-0">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              />
+            </svg>
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400">
+                Server Automated KPI &amp; Backlog Engine
+              </span>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                  kpiEngineSchedule.enabled
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                }`}
+              >
+                {kpiEngineSchedule.enabled
+                  ? `Periodic Sync Every ${kpiEngineSchedule.intervalSeconds}s`
+                  : 'Scheduler Paused'}
+              </span>
+              {latestKpiEngineResult && (
+                <span className="text-[11px] font-mono text-slate-400">
+                  Run #{kpiEngineSchedule.totalRunsCount || 1} • Trigger:{' '}
+                  {latestKpiEngineResult.triggerSource.toUpperCase()} •{' '}
+                  {new Date(latestKpiEngineResult.executedAt).toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-300 mt-1">
+              {latestKpiEngineResult ? (
+                <>
+                  Server Aggregate Branch Achievement:{' '}
+                  <strong className="font-mono text-sky-300">
+                    {latestKpiEngineResult.overallBranchAchievement}%
+                  </strong>{' '}
+                  • Avg Staff Score:{' '}
+                  <strong className="font-mono text-emerald-300">
+                    {latestKpiEngineResult.averageEmployeeWeightedScore} pts
+                  </strong>{' '}
+                  • Shortfalls Audited:{' '}
+                  <strong className="font-mono text-amber-300">
+                    {latestKpiEngineResult.detectedShortfallsCount}
+                  </strong>{' '}
+                  • Auto-Synced Backlogs:{' '}
+                  <strong className="font-mono text-indigo-300">
+                    +{latestKpiEngineResult.autoGeneratedBacklogsCount} new /{' '}
+                    {latestKpiEngineResult.reconciledBacklogsCount} cleared
+                  </strong>
+                </>
+              ) : (
+                'Periodically reconciles monthly/quarterly entries into annual actuals, recalculates Balanced Scorecard weights, and auto-generates shortfall recovery backlogs.'
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-end lg:self-center shrink-0">
+          <button
+            onClick={handleTriggerEngineNow}
+            disabled={isRecalculatingEngine}
+            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <span>
+              {isRecalculatingEngine ? 'Recalculating...' : 'Recalculate & Sync Now'}
+            </span>
+          </button>
+          {isAdmin && (
+            <Link
+              to="/network"
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition"
+            >
+              Engine Console &rarr;
+            </Link>
+          )}
         </div>
       </div>
 
@@ -840,31 +964,50 @@ export const DashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Score breakdown across categories for Ermiyas */}
-                <div className="space-y-2">
-                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                    Assigned KPIs & Current Actuals
-                  </p>
-                  {userKpis.map(k => {
-                    const obj = annualPlan.find(p => p.id === k.objectiveId);
-                    const calc = calculateKpiMetrics(k, obj);
-                    return (
-                      <div key={k.id} className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-                        <div className="overflow-hidden pr-2">
-                          <p className="font-bold text-slate-800 truncate">{k.name}</p>
-                          <p className="text-[11px] text-slate-400">
-                            Target: {k.target.toLocaleString()} • Actual: {k.actual.toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className={`font-bold ${calc.achievement >= 80 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                            {calc.achievement}%
-                          </span>
-                          <p className="text-[10px] text-slate-400">{calc.score.toFixed(1)} pts</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+                {/* Dynamic Reusable Progress Bars for Employee KPIs vs Annual Plan */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      Employee KPI Progress vs. Annual Plan
+                    </p>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Click edit icon to update live
+                    </span>
+                  </div>
+                  <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                    {userKpis.map(k => {
+                      const obj = annualPlan.find(p => p.id === k.objectiveId);
+                      const calc = calculateKpiMetrics(k, obj);
+                      const unit = obj?.unit || 'Units';
+                      return (
+                        <KpiProgressBar
+                          key={k.id}
+                          label={k.name}
+                          actual={k.actual}
+                          target={k.target}
+                          annualPlanTarget={obj?.target || k.target}
+                          annualPlanObjectiveTitle={obj?.objective}
+                          unit={unit}
+                          weight={k.weight}
+                          score={calc.score}
+                          perspective={obj?.category}
+                          size="md"
+                          showAnnualComparison={true}
+                          onQuickUpdate={() => {
+                            setQuickLogItem({
+                              type: 'kpi',
+                              id: k.id,
+                              title: k.name,
+                              unit,
+                              currentActual: k.actual,
+                              target: k.target,
+                            });
+                            setQuickLogValue(k.actual);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -1073,6 +1216,58 @@ export const DashboardPage: React.FC = () => {
             </div>
           </Card>
 
+          {/* Employee KPI Completion Relative to Annual Plan */}
+          <Card className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-800">
+                  My KPI Completion Progress Relative to Annual Plan ({userKpis.length})
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Dynamic progress tracking for each assigned KPI against individual targets and overall Annual Plan objectives
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-sky-700 bg-sky-50 px-3 py-1 rounded-lg border border-sky-200">
+                Overall Weighted Score: {totalUserScore}%
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {userKpis.map(k => {
+                const obj = annualPlan.find(p => p.id === k.objectiveId);
+                const calc = calculateKpiMetrics(k, obj);
+                const unit = obj?.unit || 'Units';
+                return (
+                  <KpiProgressBar
+                    key={k.id}
+                    label={k.name}
+                    actual={k.actual}
+                    target={k.target}
+                    annualPlanTarget={obj?.target || k.target}
+                    annualPlanObjectiveTitle={obj?.objective}
+                    unit={unit}
+                    weight={k.weight}
+                    score={calc.score}
+                    perspective={obj?.category}
+                    size="md"
+                    showAnnualComparison={true}
+                    onQuickUpdate={() => {
+                      setQuickLogItem({
+                        type: 'kpi',
+                        id: k.id,
+                        title: k.name,
+                        unit,
+                        currentActual: k.actual,
+                        target: k.target,
+                      });
+                      setQuickLogValue(k.actual);
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </Card>
+
           {/* Personal KPI Categories Performance */}
           <div>
             <div className="flex justify-between items-center mb-3">
@@ -1081,7 +1276,7 @@ export const DashboardPage: React.FC = () => {
                   My Performance by KPI Category ({categorySummaries.length})
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Personal targets and achievement pace across all banking categories
+                  Personal targets and achievement pace across all strategic categories
                 </p>
               </div>
             </div>
@@ -1093,48 +1288,33 @@ export const DashboardPage: React.FC = () => {
 
                 const myTarget = staffPlan?.annualTarget || staffKpi?.target || 0;
                 const myActual = staffPlan?.annualActual || staffKpi?.actual || 0;
-                const myPace = myTarget > 0 ? Math.round((myActual / myTarget) * 100) : 0;
                 const myWeight = staffPlan?.weight || staffKpi?.weight || 0;
 
                 return (
-                  <Card key={cat.id} className="!p-5 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className={`p-2 rounded-xl ${cat.meta.bgClass} ${cat.meta.textClass}`}>
-                            {cat.meta.icon}
-                          </span>
-                          <div>
-                            <h4 className="font-extrabold text-slate-800 text-sm">{cat.name}</h4>
-                            <span className="text-[11px] text-slate-400 font-medium">
-                              Weight: {myWeight}% of scorecard
-                            </span>
-                          </div>
-                        </div>
-
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-black ${
-                          myPace >= 80 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'
-                        }`}>
-                          {myPace}%
+                  <Card key={cat.id} className="!p-5 flex flex-col justify-between space-y-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className={`p-2 rounded-xl ${cat.meta.bgClass} ${cat.meta.textClass}`}>
+                        {cat.meta.icon}
+                      </span>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-sm">{cat.name}</h4>
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          {cat.perspective} • Weight: {myWeight}%
                         </span>
                       </div>
-
-                      <div className="my-4">
-                        <div className="flex justify-between text-xs text-slate-500 mb-1">
-                          <span>Target: {myTarget.toLocaleString()} {cat.defaultUnit}</span>
-                          <span className="font-bold text-slate-800">{myActual.toLocaleString()} Logged</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                          <div
-                            className="h-2 rounded-full transition-all"
-                            style={{
-                              width: `${Math.min(myPace, 100)}%`,
-                              backgroundColor: cat.meta.color,
-                            }}
-                          />
-                        </div>
-                      </div>
                     </div>
+
+                    <KpiProgressBar
+                      label={staffPlan?.title || staffKpi?.name || `${cat.name} Target`}
+                      actual={myActual}
+                      target={myTarget}
+                      annualPlanTarget={cat.annualTarget || myTarget}
+                      unit={cat.defaultUnit}
+                      weight={myWeight}
+                      accentColor={cat.meta.color}
+                      size="sm"
+                      showAnnualComparison={true}
+                    />
 
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                       {staffPlan ? (

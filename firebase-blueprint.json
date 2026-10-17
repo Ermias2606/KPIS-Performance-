@@ -168,12 +168,61 @@
         "notes": { "type": "string", "description": "Notes" }
       },
       "required": ["id", "employeeId", "targetId", "proposedActual", "status"]
+    },
+    "Organization": {
+      "title": "Organization",
+      "description": "Multi-sector enterprise organization profile and required position roles",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Organization ID" },
+        "name": { "type": "string", "description": "Organization name" },
+        "code": { "type": "string", "description": "Organization code" },
+        "sector": { "type": "string", "description": "Sector type" },
+        "logoUrl": { "type": "string", "description": "Logo URL" },
+        "isActive": { "type": "boolean", "description": "Active flag" }
+      },
+      "required": ["id", "name", "code", "sector"]
+    },
+    "AuditLogEntry": {
+      "title": "AuditLogEntry",
+      "description": "Immutable backend audit log record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Audit log ID" },
+        "timestamp": { "type": "string", "description": "ISO timestamp" },
+        "organizationId": { "type": "number", "description": "Organization ID" },
+        "actorId": { "type": "number", "description": "Actor employee ID" },
+        "actorName": { "type": "string", "description": "Actor name" },
+        "actorRole": { "type": "string", "description": "Actor system role" },
+        "actionType": { "type": "string", "description": "Audit action category" },
+        "targetEntity": { "type": "string", "description": "Target entity type" },
+        "summary": { "type": "string", "description": "Audit summary" }
+      },
+      "required": ["id", "timestamp", "organizationId", "actorId", "actorName", "actionType", "summary"]
+    },
+    "DatabaseSnapshot": {
+      "title": "DatabaseSnapshot",
+      "description": "Scheduled or manual point-in-time database snapshot",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Snapshot ID" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "createdBy": { "type": "string", "description": "Creator actor" },
+        "organizationId": { "type": "number", "description": "Organization ID" },
+        "label": { "type": "string", "description": "Snapshot label" },
+        "triggerType": { "type": "string", "description": "Scheduled, Manual, or Pre-Restore" }
+      },
+      "required": ["id", "createdAt", "createdBy", "organizationId", "label", "triggerType"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "User profiles authenticated via Firebase Auth"
+    },
+    "/organizations/{orgId}": {
+      "schema": { "$ref": "#/entities/Organization" },
+      "description": "Multi-sector enterprise organizations"
     },
     "/branches/{branchId}": {
       "schema": { "$ref": "#/entities/Branch" },
@@ -210,6 +259,14 @@
     "/performanceSubmissions/{submissionId}": {
       "schema": { "$ref": "#/entities/PerformanceSubmission" },
       "description": "Actual performance submissions awaiting admin review"
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLogEntry" },
+      "description": "Immutable backend audit ledger"
+    },
+    "/snapshots/{snapId}": {
+      "schema": { "$ref": "#/entities/DatabaseSnapshot" },
+      "description": "Point-in-time database snapshots"
     }
   }
 }

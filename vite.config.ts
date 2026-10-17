@@ -15,10 +15,10 @@ export default defineConfig(({ mode, command }) => {
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
         manifest: {
           id: '/',
-          name: 'Raitu Branch Performance Tracker',
-          short_name: 'Raitu BSC',
+          name: 'Performance Tracker — Organization BSC System',
+          short_name: 'Performance Tracker',
           description:
-            'An offline-first web application for Raitu Branch to map and manage employee performance using the Annual Plan and Balanced Scorecard structure.',
+            'A multi-purpose offline-first web application for organizations to map and manage branch and employee performance using the Annual Plan and Balanced Scorecard structure.',
           theme_color: '#0284c7',
           background_color: '#f8fafc',
           display: 'standalone',

@@ -5,8 +5,10 @@ import {
   setDoc,
   deleteDoc,
   writeBatch,
+  onSnapshot,
+  Unsubscribe,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from './firebase';
+import { auth, db, handleFirestoreError, OperationType } from './firebase';
 
 export async function fetchCollectionFromFirestore<T>(collectionName: string): Promise<T[]> {
   try {
@@ -21,6 +23,39 @@ export async function fetchCollectionFromFirestore<T>(collectionName: string): P
     handleFirestoreError(err, OperationType.LIST, collectionName);
     return [];
   }
+}
+
+export function subscribeCollectionFromFirestore<T>(
+  collectionName: string,
+  onData: (items: T[]) => void,
+  onErrorCallback?: (err: unknown) => void
+): Unsubscribe {
+  // Only attach real-time Firestore listener if authenticated or safely fallback
+  if (!auth.currentUser) {
+    return () => {};
+  }
+  const colRef = collection(db, collectionName);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const results: T[] = [];
+      snapshot.forEach((d) => {
+        results.push(d.data() as T);
+      });
+      onData(results);
+    },
+    (err) => {
+      if (onErrorCallback) {
+        onErrorCallback(err);
+      } else {
+        try {
+          handleFirestoreError(err, OperationType.GET, collectionName);
+        } catch {
+          // Handled gracefully
+        }
+      }
+    }
+  );
 }
 
 export async function saveDocumentToFirestore<T extends { id: string | number }>(

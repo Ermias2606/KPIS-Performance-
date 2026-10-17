@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { AuthContext } from '../context/AuthContext';
-import { Employee, PerspectiveCategory, CalculatedKpi, Role, Kpi } from '../types';
+import { Employee, PerspectiveCategory, CalculatedKpi, Role, isAdminRole, Kpi } from '../types';
 import Card from '../components/ui/Card';
 
 interface SocialPost {
@@ -46,7 +46,7 @@ export const EmployeeDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user: currentUser } = useContext(AuthContext);
-  const { employees, getEmployeeKpis, annualPlan, loading, branches } = useData();
+  const { activeOrganization, employees, getEmployeeKpis, annualPlan, loading, branches } = useData();
   const [employee, setEmployee] = useState<Employee | null>(null);
 
   const [activeProfileTab, setActiveProfileTab] = useState<'scorecard' | 'social' | 'notifications'>('scorecard');
@@ -116,7 +116,7 @@ export const EmployeeDetailPage: React.FC = () => {
           setBio(savedBio);
           setTempBio(savedBio);
         } else {
-          const defaultBio = `${foundEmployee.positionTitle || foundEmployee.role} at Raitu Branch. Passionate about commercial banking excellence, deposit mobilization, and customer service delivery.`;
+          const defaultBio = `${foundEmployee.positionTitle || foundEmployee.role} at ${activeOrganization?.name || 'Performance Tracker'}. Dedicated to organizational excellence, strategic KPI execution, and service delivery.`;
           setBio(defaultBio);
           setTempBio(defaultBio);
         }
@@ -139,8 +139,8 @@ export const EmployeeDetailPage: React.FC = () => {
     return employeeKpis.reduce((sum, kpi) => sum + kpi.score, 0);
   }, [employeeKpis]);
 
-  const branchName = branches.find(b => b.id === employee?.branchId)?.name || 'Raitu Branch';
-  const isAdmin = currentUser?.role === Role.ADMIN;
+  const branchName = branches.find(b => b.id === employee?.branchId)?.name || 'Main Operations Branch';
+  const isAdmin = isAdminRole(currentUser?.role);
   const isOwner = currentUser?.id === employee?.id;
 
   const saveBio = () => {
@@ -354,17 +354,34 @@ export const EmployeeDetailPage: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 flex-wrap gap-y-1">
                 <h1 className="text-2xl font-black">{employee.name}</h1>
-                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                <span className="px-2.5 py-0.5 text-xs font-bold rounded-lg bg-sky-500/20 text-sky-300 border border-sky-400/30">
                   {employee.role}
                 </span>
+                <span className="px-2 py-0.5 text-[11px] font-mono rounded bg-white/10 text-slate-300">
+                  {employee.employeeCode || `EMP-00${employee.id}`}
+                </span>
               </div>
-              <p className="text-sm text-slate-300 font-medium">{employee.positionTitle || 'Staff Member'} • {branchName}</p>
-              <div className="flex items-center space-x-4 text-xs text-slate-400 pt-1">
-                <span>PIN: ••••</span>
+              <p className="text-sm text-orange-300 font-semibold">
+                {employee.positionTitle || employee.role} • {employee.department || 'Operations'} • {branchName}
+              </p>
+              <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-slate-300 pt-1">
+                <span>Username: <strong className="font-mono text-sky-300">@{employee.username || 'user'}</strong></span>
                 <span>•</span>
-                <span>ID: #{employee.id}</span>
+                <span>Email: <strong className="font-mono text-slate-200">{employee.email || 'N/A'}</strong></span>
+                {employee.qualification && (
+                  <>
+                    <span>•</span>
+                    <span>Qualification: <strong>{employee.qualification}</strong></span>
+                  </>
+                )}
+                {employee.hireDate && (
+                  <>
+                    <span>•</span>
+                    <span>Since: <strong>{employee.hireDate}</strong></span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -384,11 +401,11 @@ export const EmployeeDetailPage: React.FC = () => {
                 onChange={(e) => {
                   if (e.target.value) navigate(`/employees/${e.target.value}`);
                 }}
-                defaultValue={employee.id}
+                value={employee.id}
                 className="bg-slate-800 text-white text-xs font-semibold px-3 py-2.5 rounded-xl border border-slate-700 outline-none cursor-pointer"
               >
-                {employees.filter(e => e.role !== Role.ADMIN).map(emp => (
-                  <option key={emp.id} value={emp.id}>Visit {emp.name}</option>
+                {employees.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>
                 ))}
               </select>
             </div>

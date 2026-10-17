@@ -31,7 +31,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
       <>
         <button
           onClick={handleClick}
-          title="Install Raitu BSC PWA"
+          title="Install Performance Tracker App"
           className={`flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-lg border border-sky-200 transition-colors ${className}`}
         >
           <svg

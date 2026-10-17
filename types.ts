@@ -1,8 +1,52 @@
 export enum Role {
-  STAFF = 'Staff Member',
-  MANAGER = 'Branch Manager',
+  SUPER_ADMIN = 'Super Admin',
   ADMIN = 'Admin (HQ)',
+  MANAGER = 'Branch Manager',
+  OFFICER = 'Officer',
+  STAFF = 'Staff Member',
 }
+
+export const isSuperAdminRole = (role?: Role | string): boolean => {
+  return role === Role.SUPER_ADMIN || role === 'SUPER_ADMIN';
+};
+
+export const isAdminRole = (role?: Role | string): boolean => {
+  return (
+    role === Role.SUPER_ADMIN ||
+    role === Role.ADMIN ||
+    role === 'SUPER_ADMIN' ||
+    role === 'ADMIN'
+  );
+};
+
+export const isManagerOrAboveRole = (role?: Role | string): boolean => {
+  return isAdminRole(role) || role === Role.MANAGER || role === 'MANAGER';
+};
+
+export const isOfficerOrAboveRole = (role?: Role | string): boolean => {
+  return isManagerOrAboveRole(role) || role === Role.OFFICER || role === 'OFFICER';
+};
+
+export const getRoleHierarchyLevel = (role?: Role | string): number => {
+  switch (role) {
+    case Role.SUPER_ADMIN:
+    case 'SUPER_ADMIN':
+      return 5;
+    case Role.ADMIN:
+    case 'ADMIN':
+      return 4;
+    case Role.MANAGER:
+    case 'MANAGER':
+      return 3;
+    case Role.OFFICER:
+    case 'OFFICER':
+      return 2;
+    case Role.STAFF:
+    case 'STAFF':
+    default:
+      return 1;
+  }
+};
 
 export enum PerspectiveCategory {
   FINANCIAL = 'Financial',
@@ -31,17 +75,42 @@ export interface KpiCategoryItem {
   isSystem?: boolean; // Default bank categories vs user-created
 }
 
+export type EmploymentType = 'Full-Time' | 'Contract' | 'Part-Time' | 'Seconded';
+export type EmployeeStatus = 'Active' | 'On Leave' | 'Transferred' | 'Probation';
+
 export interface Employee {
   id: number;
   name: string;
   role: Role;
   branchId: number;
   pin: string;
+  username?: string;
+  password?: string;
+  passwordHash?: string;
+  failedLoginAttempts?: number;
+  lockedUntil?: string | null;
+  mustChangePassword?: boolean;
+  passwordResetRequested?: boolean;
+  lastPasswordResetAt?: string;
+  lastPasswordResetBy?: string;
+  lastLoginAt?: string;
+  employeeCode?: string;
+  organizationId?: number;
+  organizationRoleId?: string;
   positionTitle?: string;
   email?: string;
   phone?: string;
   department?: string;
-  status?: 'Active' | 'On Leave' | 'Transferred';
+  employmentType?: EmploymentType;
+  hireDate?: string;
+  qualification?: string;
+  specialization?: string;
+  supervisorId?: number;
+  location?: string;
+  emergencyContact?: string;
+  skills?: string[];
+  notes?: string;
+  status?: EmployeeStatus;
   avatarUrl?: string;
 }
 
@@ -55,6 +124,7 @@ export interface AnnualPlanObjective {
   unit?: string;
   weight?: number;
   branchId?: number;
+  organizationId?: number;
 }
 
 export interface Kpi {
@@ -68,17 +138,91 @@ export interface Kpi {
   kpiCategory?: KpiCategoryType;
   selfRating?: number; // 1-5 scale
   managerRating?: number; // 1-5 scale
+  organizationId?: number;
+}
+
+export type OrganizationSector =
+  | 'Manufacturing & Production'
+  | 'Service & Hospitality'
+  | 'Financial & Banking Services'
+  | 'Technology & SaaS'
+  | 'Healthcare & Medical'
+  | 'Retail & Supply Chain'
+  | 'Agriculture & Agro-Processing'
+  | 'Education & Research'
+  | 'Public Sector & NGO'
+  | string;
+
+export interface OrganizationPositionRole {
+  id: string;
+  title: string;
+  department: string;
+  systemRole: Role;
+  responsibilities?: string;
+  requiredCount?: number;
+  isRequired?: boolean;
+}
+
+export type OrganizationServiceStatus = 'Active' | 'Suspended' | 'Trial';
+export type OrganizationServicePlanTier = 'Starter' | 'Enterprise' | 'Custom Service Plan';
+
+export interface OrganizationCapabilities {
+  kpiScorecard: boolean;
+  periodicPlans: boolean;
+  backlogEngine: boolean;
+  employeeEvaluations: boolean;
+  customerFeedback: boolean;
+  reportsAndExports: boolean;
+  lanAndSnapshots: boolean;
+}
+
+export interface OrganizationQuotas {
+  maxEmployees: number;
+  maxBranches: number;
+  maxStorageMb: number;
+}
+
+export interface SystemProviderConfig {
+  serviceTitle: string;
+  ownerName: string;
+  ownerEmail: string;
+  masterPasskey: string;
+  masterPin: string;
+  updatedAt?: string;
+}
+
+export interface Organization {
+  id: number;
+  name: string;
+  code: string;
+  sector: OrganizationSector;
+  logoUrl?: string;
+  description?: string;
+  headquarters?: string;
+  establishedDate?: string;
+  primaryCurrency?: string;
+  isActive?: boolean;
+  requiredPositions?: OrganizationPositionRole[];
+  serviceStatus?: OrganizationServiceStatus;
+  planTier?: OrganizationServicePlanTier;
+  capabilities?: OrganizationCapabilities;
+  quotas?: OrganizationQuotas;
+  primaryAdminEmail?: string;
+  ownerNotes?: string;
 }
 
 export interface Branch {
   id: number;
   name: string;
-  code?: string; // e.g. "RTU-01"
-  district?: string; // e.g. "West Hararghe District"
+  code?: string; // e.g. "HQ-01"
+  district?: string; // e.g. "Central Operations Zone"
   fiscalYear?: string; // e.g. "2024/2025"
   openingDate?: string;
-  juneClosingDepositBalance?: number; // Previous June closing balance in ETB
+  juneClosingDepositBalance?: number; // Previous June closing baseline
   isActive?: boolean;
+  organizationId?: number;
+  sector?: OrganizationSector;
+  logoUrl?: string;
 }
 
 export interface FiscalYearConfig {
@@ -106,6 +250,7 @@ export interface PeriodicPlanItem {
   annualActual: number;
   weight: number; // Percentage
   branchId?: number;
+  organizationId?: number;
   quarterly: {
     q1: { target: number; actual: number };
     q2: { target: number; actual: number };
@@ -132,6 +277,7 @@ export interface BacklogPlanItem {
   priority: BacklogPriority;
   status: BacklogStatus;
   branchId?: number;
+  organizationId?: number;
   assignedEmployeeId?: number; // Specific employee assigned to recover this backlog
   assignedDate?: string;
   notes?: string;
@@ -147,6 +293,7 @@ export interface EmployeePlanAssignment {
   annualActual: number;
   weight: number; // percentage
   branchId?: number;
+  organizationId?: number;
   quarterly: {
     q1: { target: number; actual: number };
     q2: { target: number; actual: number };
@@ -193,3 +340,138 @@ export interface PerformanceSubmission {
   status: 'Pending' | 'Approved' | 'Rejected';
   notes?: string;
 }
+
+export type AuditActionType =
+  | 'AUTH_LOGIN'
+  | 'AUTH_LOCKOUT'
+  | 'ACCOUNT_UNLOCK'
+  | 'PASSWORD_RESET'
+  | 'ROLE_CHANGE'
+  | 'KPI_UPDATE'
+  | 'PLAN_UPDATE'
+  | 'ORG_CHANGE'
+  | 'ORG_MUTATION'
+  | 'SNAPSHOT_CREATE'
+  | 'SNAPSHOT_RESTORE'
+  | 'BULK_IMPORT'
+  | 'KPI_ENGINE_RUN';
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  organizationId: number;
+  branchId?: number;
+  actorId: number;
+  actorName: string;
+  actorRole: Role | string;
+  actionType: AuditActionType;
+  targetEntity: string;
+  targetId?: string | number;
+  summary: string;
+  previousValue?: string;
+  newValue?: string;
+}
+
+export interface SyncQueueItem {
+  id: string;
+  timestamp: string;
+  collection: string;
+  operation: 'create' | 'update' | 'delete';
+  payload: any;
+  organizationId: number;
+  retryCount: number;
+}
+
+export interface DatabaseSnapshot {
+  id: string;
+  createdAt: string;
+  createdBy: string;
+  organizationId: number;
+  label: string;
+  triggerType: 'Scheduled' | 'Manual' | 'Pre-Restore';
+  recordCounts: {
+    organizations: number;
+    branches: number;
+    employees: number;
+    kpis: number;
+    plans: number;
+    backlogs: number;
+  };
+  data?: {
+    organizations: Organization[];
+    branches: Branch[];
+    employees: Employee[];
+    annualPlan: AnnualPlanObjective[];
+    kpis: Kpi[];
+    periodicPlans: PeriodicPlanItem[];
+    backlogPlans: BacklogPlanItem[];
+    employeePlans: EmployeePlanAssignment[];
+  };
+}
+
+export interface KpiEngineScheduleConfig {
+  enabled: boolean;
+  intervalSeconds: number;
+  autoSyncBacklogs: boolean;
+  runOnMutation: boolean;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  totalRunsCount: number;
+}
+
+export interface KpiEngineShortfallAlert {
+  id: string;
+  category: string;
+  kpiName: string;
+  periodName: string;
+  target: number;
+  actual: number;
+  deficit: number;
+  metricUnit: string;
+  severity: 'Urgent' | 'High' | 'Medium' | 'Low';
+  source: 'branch' | 'employee';
+  employeeName?: string;
+  autoSyncedBacklogId?: number;
+  backlogGenerated?: boolean;
+}
+
+export interface KpiEngineCalculationResult {
+  executedAt: string;
+  triggerSource: 'Periodic Scheduler' | 'Mutation Hook' | 'Manual Trigger' | 'Startup' | string;
+  organizationId: number;
+  branchId: number;
+  employeeScores: {
+    employeeId: number;
+    employeeName: string;
+    role: string;
+    kpiCount: number;
+    totalWeight?: number;
+    activeBacklogsCount?: number;
+    weightedScore: number;
+    averageAchievement: number;
+  }[];
+  perspectiveScores?: {
+    perspective: string;
+    objectiveCount: number;
+    averageAchievement: number;
+    weightedScore: number;
+  }[];
+  perspectiveBreakdown?: {
+    perspective: string;
+    totalWeight: number;
+    weightedScore: number;
+    achievement: number;
+  }[];
+  shortfallAlerts?: KpiEngineShortfallAlert[];
+  detectedShortfallsCount: number;
+  overallBranchAchievement: number;
+  averageEmployeeWeightedScore?: number;
+  netDepositIncrement: number;
+  reconciledPlansCount?: number;
+  autoGeneratedBacklogsCount?: number;
+  autoClearedBacklogsCount?: number;
+  reconciledBacklogsCount?: number;
+  totalBacklogDeficitRemaining?: number;
+}
+
+

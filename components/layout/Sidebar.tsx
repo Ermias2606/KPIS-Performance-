@@ -1,6 +1,9 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Employee, Role } from '../../types';
+import { Employee, Role, isAdminRole, isOfficerOrAboveRole } from '../../types';
+import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
+import { DEFAULT_ORGANIZATION_CAPABILITIES } from '../../constants';
 
 interface SidebarProps {
   user: Employee;
@@ -35,7 +38,7 @@ const SidebarIcon: React.FC<{ path: string }> = ({ path }) => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
       </svg>
     ),
-    'branch & fiscal setup': (
+    'org, branch & fiscal': (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
       </svg>
@@ -60,6 +63,12 @@ const SidebarIcon: React.FC<{ path: string }> = ({ path }) => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
       </svg>
     ),
+    'system control plane': (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
   };
   return icons[path.toLowerCase()] || null;
 };
@@ -81,9 +90,18 @@ const NavItem: React.FC<{ to: string; label: string }> = ({ to, label }) => {
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ user, isOpen, setIsOpen }) => {
-  const isAdmin = user.role === Role.ADMIN;
-  const isManager = user.role === Role.MANAGER;
-  const isStaff = user.role === Role.STAFF;
+  const { activeOrganization, branches, activeBranchId } = useData();
+  const { isSystemOwner } = useAuth();
+  const activeBranch = branches.find(b => b.id === (user?.branchId || activeBranchId)) || branches[0];
+  const isAdmin = isAdminRole(user.role);
+  const canViewEmployees = isOfficerOrAboveRole(user.role) || user.role === Role.STAFF;
+  const hasPersonalScorecard =
+    user.role === Role.STAFF || user.role === Role.OFFICER || user.role === Role.MANAGER;
+
+  const orgCaps = {
+    ...DEFAULT_ORGANIZATION_CAPABILITIES,
+    ...(activeOrganization?.capabilities || {}),
+  };
 
   const sidebarClasses = `
     fixed inset-y-0 left-0 z-30
@@ -98,15 +116,27 @@ const Sidebar: React.FC<SidebarProps> = ({ user, isOpen, setIsOpen }) => {
     <>
       <div className={sidebarClasses}>
         <div className="flex items-center justify-between px-2 pb-6 pt-2">
-          <div className="flex items-center space-x-3">
-            <div className="bg-sky-600 p-2 rounded-xl shadow-sm shadow-sky-200">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3m6-6h3m-21 0h3m12 0a6 6 0 11-12 0 6 6 0 0112 0z" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-base font-bold text-slate-800 leading-tight">Raitu BSC</h1>
-              <p className="text-[11px] text-slate-400 font-medium">Performance Tracker</p>
+          <div className="flex items-center space-x-3 min-w-0">
+            {activeOrganization?.logoUrl ? (
+              <img
+                src={activeOrganization.logoUrl}
+                alt={activeOrganization.name}
+                className="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0"
+              />
+            ) : (
+              <div className="bg-sky-600 p-2 rounded-xl shadow-sm shadow-sky-200 shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3m6-6h3m-21 0h3m12 0a6 6 0 11-12 0 6 6 0 0112 0z" />
+                </svg>
+              </div>
+            )}
+            <div className="min-w-0">
+              <h1 className="text-sm font-bold text-slate-900 leading-tight truncate">
+                Performance Tracker
+              </h1>
+              <p className="text-[11px] text-slate-500 font-medium truncate">
+                {activeOrganization?.name || 'Organization BSC'}
+              </p>
             </div>
           </div>
           <button onClick={() => setIsOpen(false)} className="md:hidden p-2 text-slate-500 hover:text-slate-800" aria-label="Close sidebar">
@@ -118,21 +148,41 @@ const Sidebar: React.FC<SidebarProps> = ({ user, isOpen, setIsOpen }) => {
 
         <nav className="flex-1 space-y-1.5 bg-white">
           <NavItem to="/dashboard" label="Dashboard" />
-          {(isAdmin || isManager) && <NavItem to="/employees" label="Employees" />}
-          {(isStaff || isManager) && <NavItem to={`/employees/${user.id}`} label="My Scorecard" />}
-          <NavItem to="/plan" label="Plan" />
-          <NavItem to="/performance-input" label="Performance Input" />
-          {isAdmin && <NavItem to="/admin/approvals" label="Approvals" />}
-          {(isAdmin || isManager) && <NavItem to="/reports" label="Reports" />}
-          {isAdmin && <NavItem to="/admin/branch-setup" label="Branch & Fiscal Setup" />}
-          <NavItem to="/network" label="LAN & Devices" />
+          {canViewEmployees && <NavItem to="/employees" label="Employees" />}
+          {hasPersonalScorecard && orgCaps.kpiScorecard && (
+            <NavItem to={`/employees/${user.id}`} label="My Scorecard" />
+          )}
+          {orgCaps.periodicPlans && <NavItem to="/plan" label="Plan" />}
+          {orgCaps.employeeEvaluations && (
+            <NavItem to="/performance-input" label="Performance Input" />
+          )}
+          {isAdmin && orgCaps.employeeEvaluations && (
+            <NavItem to="/admin/approvals" label="Approvals" />
+          )}
+          {orgCaps.reportsAndExports && <NavItem to="/reports" label="Reports" />}
+          <NavItem to="/admin/branch-setup" label="Org, Branch & Fiscal" />
+          {orgCaps.lanAndSnapshots && <NavItem to="/network" label="LAN & Devices" />}
+          {isSystemOwner && (
+            <NavItem to="/system-dashboard" label="System Control Plane" />
+          )}
           <NavItem to="/" label="Landing Portal" />
         </nav>
 
-        <div className="mt-auto p-3 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs text-slate-500">
-          <p className="font-semibold text-slate-700">Raitu Branch</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Offline-first BSC system</p>
-        </div>
+        <NavLink
+          to="/admin/branch-setup"
+          title="Open Organization, Branch & Fiscal Setup"
+          className="mt-auto p-3 bg-slate-50 hover:bg-sky-50/70 rounded-xl border border-slate-200 hover:border-sky-200 text-center text-xs text-slate-500 transition block"
+        >
+          <p className="font-semibold text-slate-800 truncate">
+            {activeOrganization?.name || 'Performance Tracker'}
+          </p>
+          <p className="text-[10px] text-orange-700 font-medium truncate mt-0.5">
+            {activeOrganization?.sector || 'Enterprise Sector'}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+            {activeBranch?.name || 'Main Operations Unit'} · Setup &rarr;
+          </p>
+        </NavLink>
       </div>
       {isOpen && (
         <div

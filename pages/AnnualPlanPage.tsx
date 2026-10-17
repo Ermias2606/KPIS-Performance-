@@ -19,6 +19,7 @@ import { AuthContext } from '../context/AuthContext';
 import {
   KpiCategory,
   Role,
+  isAdminRole,
   PeriodicPlanItem,
   BacklogPlanItem,
   EmployeePlanAssignment,
@@ -174,8 +175,8 @@ const AnnualPlanPage: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isAdmin = user?.role === Role.ADMIN;
-  const staffMembers = useMemo(() => employees.filter(e => e.role !== Role.ADMIN), [employees]);
+  const isAdmin = isAdminRole(user?.role);
+  const staffMembers = useMemo(() => employees.filter(e => !isAdminRole(e.role)), [employees]);
 
   const categories = useMemo(() => {
     return kpiCategories.map(c => c.name);

@@ -58,12 +58,14 @@ const initDB = async () => {
     },
   });
 
-  // Ensure employees store only has Admin and Ermiyas Getachew
+  // Upsert seed employees without wiping newly added employees
   const empTx = db.transaction('employees', 'readwrite');
   const empStore = empTx.objectStore('employees');
-  await empStore.clear();
   for (const emp of EMPLOYEES) {
-    await empStore.put(emp);
+    const existing = await empStore.get(emp.id);
+    if (!existing) {
+      await empStore.put(emp);
+    }
   }
   await empTx.done;
 
@@ -75,32 +77,41 @@ const initDB = async () => {
     if (!existing) {
       await brStore.put(br);
     } else {
+      const isLegacyName = existing.name === 'Raitu Branch' || existing.name === 'Asbe Teferi Branch';
       await brStore.put({
         ...br,
         ...existing,
+        name: isLegacyName ? br.name : existing.name,
+        code: isLegacyName ? br.code : (existing.code ?? br.code),
+        district: isLegacyName ? br.district : (existing.district ?? br.district),
+        organizationId: existing.organizationId ?? br.organizationId,
+        sector: existing.sector ?? br.sector,
         juneClosingDepositBalance: existing.juneClosingDepositBalance ?? br.juneClosingDepositBalance,
         fiscalYear: existing.fiscalYear ?? br.fiscalYear,
-        code: existing.code ?? br.code,
       });
     }
   }
   await brTx.done;
 
-  // Refresh annualPlan
+  // Seed annualPlan if missing
   const apTx = db.transaction('annualPlan', 'readwrite');
   const apStore = apTx.objectStore('annualPlan');
-  await apStore.clear();
   for (const ap of ANNUAL_PLAN_2026) {
-    await apStore.put(ap);
+    const existing = await apStore.get(ap.id);
+    if (!existing) {
+      await apStore.put(ap);
+    }
   }
   await apTx.done;
 
-  // Refresh KPIs for Ermiyas
+  // Seed KPIs if missing
   const kpiTx = db.transaction('kpis', 'readwrite');
   const kpiStore = kpiTx.objectStore('kpis');
-  await kpiStore.clear();
   for (const kpi of KPIS) {
-    await kpiStore.put(kpi);
+    const existing = await kpiStore.get(kpi.id);
+    if (!existing) {
+      await kpiStore.put(kpi);
+    }
   }
   await kpiTx.done;
 
@@ -115,12 +126,14 @@ const initDB = async () => {
   }
   await pTx.done;
 
-  // Seed backlogPlans store
+  // Seed backlogPlans store if missing
   const bTx = db.transaction('backlogPlans', 'readwrite');
   const bStore = bTx.objectStore('backlogPlans');
-  await bStore.clear();
   for (const item of INITIAL_BACKLOG_PLANS) {
-    await bStore.put(item);
+    const existing = await bStore.get(item.id);
+    if (!existing) {
+      await bStore.put(item);
+    }
   }
   await bTx.done;
 
@@ -159,10 +172,21 @@ export const getDb = (() => {
   };
 })();
 
+const dedupeListById = <T,>(items: T[]): T[] => {
+  const map = new Map<string, T>();
+  for (const item of items) {
+    if (item && typeof item === 'object' && 'id' in (item as any)) {
+      map.set(String((item as any).id), item);
+    }
+  }
+  return map.size > 0 ? Array.from(map.values()) : items;
+};
+
 // Generic CRUD operations
 export const getAll = async <T,>(storeName: string): Promise<T[]> => {
   const db = await getDb();
-  return db.getAll(storeName);
+  const all = await db.getAll(storeName);
+  return dedupeListById(all);
 };
 
 export const getById = async <T,>(storeName: string, id: number | string): Promise<T | undefined> => {
@@ -172,7 +196,7 @@ export const getById = async <T,>(storeName: string, id: number | string): Promi
 
 export const add = async <T,>(storeName: string, item: Omit<T, 'id'> | T): Promise<number | string> => {
   const db = await getDb();
-  const key = await db.add(storeName, item);
+  const key = await db.put(storeName, item);
   return key as number | string;
 };
 
@@ -196,3 +220,4 @@ export const getEmployeePlansByEmployeeId = async (employeeId: number): Promise<
   const db = await getDb();
   return db.getAllFromIndex('employeePlans', 'byEmployee', employeeId);
 };
+

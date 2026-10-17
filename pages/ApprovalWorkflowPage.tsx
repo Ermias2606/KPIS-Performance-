@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useData } from '../context/DataContext';
 import { AuthContext } from '../context/AuthContext';
 import Card from '../components/ui/Card';
-import { Role } from '../types';
+import { isAdminRole } from '../types';
 
 interface PerformanceRequest {
   id: string;
@@ -43,7 +43,7 @@ export const ApprovalWorkflowPage: React.FC = () => {
 
   const [filterStatus, setFilterStatus] = useState<'All' | 'Pending' | 'Approved' | 'Rejected'>('Pending');
 
-  const isAdmin = user?.role === Role.ADMIN;
+  const isAdmin = isAdminRole(user?.role);
 
   const saveRequests = (updated: PerformanceRequest[]) => {
     setRequests(updated);

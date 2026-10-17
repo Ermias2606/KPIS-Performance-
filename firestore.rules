@@ -18,7 +18,12 @@ service cloud.firestore {
       return isBootstrappedAdmin() || (
         isAuthenticated() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        (getUserData().role == 'ADMIN' || getUserData().role == 'Admin (HQ)')
+        (
+          getUserData().role == 'SUPER_ADMIN' ||
+          getUserData().role == 'Super Admin' ||
+          getUserData().role == 'ADMIN' ||
+          getUserData().role == 'Admin (HQ)'
+        )
       );
     }
 
@@ -26,7 +31,12 @@ service cloud.firestore {
       return isAdmin() || (
         isAuthenticated() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        (getUserData().role == 'MANAGER' || getUserData().role == 'Branch Manager')
+        (
+          getUserData().role == 'MANAGER' ||
+          getUserData().role == 'Branch Manager' ||
+          getUserData().role == 'OFFICER' ||
+          getUserData().role == 'Officer'
+        )
       );
     }
 
@@ -118,6 +128,25 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update, delete: if isAdmin();
+    }
+
+    // Multi-Purpose Organizations
+    match /organizations/{orgId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Immutable Backend Audit Logs
+    match /auditLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // Database Snapshots
+    match /snapshots/{snapId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
     }
   }
 }

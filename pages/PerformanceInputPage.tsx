@@ -2,7 +2,7 @@ import React, { useState, useContext, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { AuthContext } from '../context/AuthContext';
 import Card from '../components/ui/Card';
-import { Role } from '../types';
+import { Role, isAdminRole } from '../types';
 
 interface PerformanceLogEntry {
   id: string;
@@ -47,17 +47,16 @@ export const PerformanceInputPage: React.FC = () => {
     loading,
   } = useData();
 
+  const isAdmin = isAdminRole(user?.role);
   const [activeTab, setActiveTab] = useState<'branch' | 'employee' | 'backlog' | 'requests' | 'history'>('branch');
-  const [selectedTargetType, setSelectedTargetType] = useState<'branch' | 'employee' | 'backlog'>(user?.role === Role.ADMIN ? 'branch' : 'employee');
-  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<number | 'ALL'>(user?.role === Role.ADMIN ? 'ALL' : (user?.id || 'ALL'));
+  const [selectedTargetType, setSelectedTargetType] = useState<'branch' | 'employee' | 'backlog'>(isAdmin ? 'branch' : 'employee');
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<number | 'ALL'>(isAdmin ? 'ALL' : (user?.id || 'ALL'));
   const [selectedTargetId, setSelectedTargetId] = useState<number>(periodicPlans[0]?.id || 1);
   const [inputDate, setInputDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [inputValue, setInputValue] = useState<number | ''>('');
   const [inputNotes, setInputNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  const isAdmin = user?.role === Role.ADMIN;
 
   // Local storage audit logs
   const [auditLogs, setAuditLogs] = useState<PerformanceLogEntry[]>(() => {
@@ -81,7 +80,7 @@ export const PerformanceInputPage: React.FC = () => {
 
   // Staff members list
   const staffMembers = useMemo(() => {
-    return employees.filter(e => e.role !== Role.ADMIN);
+    return employees.filter(e => !isAdminRole(e.role));
   }, [employees]);
 
   // Filtered employee plans based on selected employee dropdown
